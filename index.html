@@ -118,31 +118,21 @@
             net_migration: "Čistá migrace", dxy: "Dolarový index (DXY)"
         };
 
-        // --- MATH INTERPOLATOR REGISTRATION ---
-        // Custom Tooltip Positioner locks the tooltip natively to our custom animation frame coordinates
-        Chart.Tooltip.positioners.easedPosition = function(elements, eventPosition) {
-            if (!elements.length) return false;
-            const chart = this.chart;
-            if (chart._animX !== undefined && chart._animY !== undefined) {
-                return { x: chart._animX, y: chart._animY };
-            }
-            return { x: eventPosition.x, y: eventPosition.y };
-        };
-
         // --- PURE CANVAS CHART PLUGINS ---
         
         // 1. Vertical Lines matching Data Points, strictly inside the filled graph
         const verticalUnderfillPlugin = {
             id: 'verticalUnderfill',
-            beforeDatasetDraw: (chart, args) => {
+            beforeDatasetsDraw: (chart) => {
                 const ctx = chart.ctx;
-                const meta = args.meta;
+                const meta = chart.getDatasetMeta(0);
                 if (!meta || !meta.data.length || !chart.chartArea) return;
                 
                 const topY = chart.chartArea.top;
                 const bottomY = chart.chartArea.bottom;
                 
                 ctx.save();
+                
                 // Mask to ensure lines only render inside the green fill
                 ctx.beginPath();
                 ctx.moveTo(meta.data[0].x, bottomY);
@@ -164,11 +154,12 @@
                 ctx.strokeStyle = 'rgba(198, 243, 79, 0.08)'; 
                 ctx.lineWidth = 1;
                 ctx.stroke();
+                
                 ctx.restore();
             }
         };
 
-        // 2. Continuous Animation Easing, Math Lerping, and Canvas Overlays
+        // 2. Continuous Point-to-Point Easing, Darkening Transition, Massive Radial Cone
         const advancedHoverPlugin = {
             id: 'advancedHover',
             beforeEvent: (chart, args) => {
@@ -179,42 +170,45 @@
                     chart._isHovered = false;
                 }
             },
-            beforeDatasetsDraw: (chart, args) => {
+            beforeDatasetsDraw: (chart) => {
                 const ctx = chart.ctx;
-                const meta = args.meta;
                 if (!chart.chartArea) return;
 
-                // 1. Calculate smooth mathematical easing for the Dark Mode Transition
+                // 1. Smooth Easing for Dark Mode Transition
                 if (chart._hoverAlpha === undefined) chart._hoverAlpha = 0;
                 const targetAlpha = chart._isHovered ? 1 : 0;
                 
                 let needsRedraw = false;
                 if (Math.abs(targetAlpha - chart._hoverAlpha) > 0.01) {
-                    chart._hoverAlpha += (targetAlpha - chart._hoverAlpha) * 0.15; // Smooth 15% step per frame
+                    chart._hoverAlpha += (targetAlpha - chart._hoverAlpha) * 0.15; // Smooth step
                     needsRedraw = true;
                 } else {
-                    chart._hoverAlpha = targetAlpha; // Clamp
+                    chart._hoverAlpha = targetAlpha;
                 }
 
-                // Smoothly Lerp Colors from Bright Lime (198, 243, 79) to Dark Olive (58, 71, 34)
+                // Lerp Colors from Bright Lime (198, 243, 79) to Dark Olive (58, 71, 34)
                 const r = Math.round(198 + (58 - 198) * chart._hoverAlpha);
                 const g = Math.round(243 + (71 - 243) * chart._hoverAlpha);
                 const b = Math.round(79 + (34 - 79) * chart._hoverAlpha);
                 const aFillTop = 0.15 + (0.4 - 0.15) * chart._hoverAlpha;
                 
-                meta.dataset.options.borderColor = `rgb(${r}, ${g}, ${b})`;
+                chart.data.datasets[0].borderColor = `rgb(${r}, ${g}, ${b})`;
                 
                 const topY = chart.chartArea.top;
                 const bottomY = chart.chartArea.bottom;
                 const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
                 grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${aFillTop})`); 
                 grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-                meta.dataset.options.backgroundColor = grad;
+                chart.data.datasets[0].backgroundColor = grad;
 
-                if (needsRedraw) requestAnimationFrame(() => chart.draw());
+                if (needsRedraw) {
+                    requestAnimationFrame(() => chart.draw());
+                }
             },
             afterDatasetsDraw: (chart) => {
+                // We MUST use afterDatasetsDraw so tooltip natively renders on top of our glow
                 if (!chart.tooltip?._active?.length) {
+                    // Send idle event to hide light cone
                     window.dispatchEvent(new CustomEvent('chartMouseOut'));
                     return;
                 }
@@ -223,16 +217,16 @@
                 const targetX = activePoint.element.x;
                 const targetY = activePoint.element.y;
                 
-                // Initialize animated positions if missing
                 if (chart._animX === undefined || !chart._isHovered) {
                     chart._animX = targetX;
                     chart._animY = targetY;
                 }
 
-                // 2. Mathematical Easing (Lerp) for Point Tracking Coordinates
+                // 2. Mathematical Easing (Lerp) for Point Tracking
+                // Jumps strictly between data points, but glides visually
                 let needsRedraw = false;
                 if (Math.abs(targetX - chart._animX) > 0.5 || Math.abs(targetY - chart._animY) > 0.5) {
-                    chart._animX += (targetX - chart._animX) * 0.2; // Move 20% closer every frame
+                    chart._animX += (targetX - chart._animX) * 0.2; 
                     chart._animY += (targetY - chart._animY) * 0.2;
                     needsRedraw = true;
                 } else {
@@ -268,7 +262,7 @@
                 ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(rightX, y);
                 ctx.strokeStyle = gradX; ctx.lineWidth = 1; ctx.stroke();
 
-                // 4. Highlighted Curve Segment (Constant Thickness = 2, Tracks curve perfectly)
+                // 4. Highlighted Curve Segment (Constant Thickness = 2)
                 const meta = chart.getDatasetMeta(0);
                 const points = meta.data;
                 
@@ -279,13 +273,13 @@
                         ctx.bezierCurveTo(points[i-1].cp2x, points[i-1].cp2y, points[i].cp1x, points[i].cp1y, points[i].x, points[i].y);
                     }
                     
-                    // Radial gradient isolates the brightness strictly to the hovered area
+                    // Radial gradient isolates the brightness strictly to the hovered area, fading seamlessly
                     const lineGrad = ctx.createRadialGradient(x, y, 0, x, y, 300);
                     lineGrad.addColorStop(0, `rgba(198, 243, 79, ${chart._hoverAlpha})`);
                     lineGrad.addColorStop(1, 'rgba(198, 243, 79, 0)');
                     
                     ctx.strokeStyle = lineGrad;
-                    ctx.lineWidth = 2; // Strict constant thickness matching base line
+                    ctx.lineWidth = 2; // Strict constant thickness
                     ctx.stroke();
                 }
 
@@ -305,7 +299,9 @@
                 // Broadcast mathematically smoothed coordinates to HTML Light Cone
                 window.dispatchEvent(new CustomEvent('chartHover', { detail: { x, y, alpha: chart._hoverAlpha }}));
 
-                if (needsRedraw) requestAnimationFrame(() => chart.draw());
+                if (needsRedraw) {
+                    requestAnimationFrame(() => chart.draw());
+                }
             }
         };
         Chart.register(verticalUnderfillPlugin, advancedHoverPlugin);
@@ -317,19 +313,18 @@
             const chartInstanceRef = useRef(null);
             const coneRef = useRef(null);
 
-            // Light Cone Event Listener (No CSS transitions needed, Math loop feeds it 60fps)
+            // Light Cone Event Listener (Math loop feeds it 60fps for perfect tracking)
             useEffect(() => {
                 const handleHover = (e) => {
                     if (coneRef.current && containerRef.current) {
-                        const x = e.detail.x + 24; // Align to panel padding
+                        const x = e.detail.x + 24; // Align to padding
                         const y = e.detail.y + 24; 
-                        // Only scale opacity based on math loop, coordinate jump is purely driven by frame data
                         coneRef.current.style.opacity = e.detail.alpha;
                         coneRef.current.style.transform = `translate(calc(${x}px - 50%), calc(${y}px - 50%))`;
                     }
                 };
                 const handleMouseOut = () => {
-                    if (coneRef.current) coneRef.current.style.opacity = 0;
+                    if (coneRef.current) { coneRef.current.style.opacity = 0; }
                 };
                 window.addEventListener('chartHover', handleHover);
                 window.addEventListener('chartMouseOut', handleMouseOut);
@@ -373,13 +368,12 @@
                                 legend: { display: false },
                                 tooltip: {
                                     enabled: true,
-                                    position: 'easedPosition', // Uses our custom math interpolator to stick to the point perfectly
-                                    animation: false, // Disable native CSS animation so our RAF loop has 100% control
                                     backgroundColor: '#151E20', titleColor: '#6B8286',
                                     bodyColor: '#C6F34F', borderColor: '#232E30',
                                     borderWidth: 1, padding: 12, displayColors: false,
                                     titleFont: { size: 11, family: 'system-ui' },
                                     bodyFont: { size: 14, family: 'system-ui', weight: 'bold' },
+                                    animation: { duration: 250, easing: 'easeOutQuart' }, // Native tooltip glide
                                     callbacks: {
                                         title: (ctx) => ctx[0].label,
                                         label: (ctx) => '$' + ctx.parsed.y.toFixed(2)
@@ -845,9 +839,9 @@
                                     <div>
                                         <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-4">Živé Ladění Parametrů</h2>
                                         <div className="flex flex-col gap-6">
-                                            <SidebarSlider title="Ekonomická Aktivita (A)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
-                                            <SidebarSlider title="Intenzita Deficitu (D)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
-                                            <SidebarSlider title="Systémové Riziko (R)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
+                                            <SidebarSlider title="Ekonomická Aktivita (A_it)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
+                                            <SidebarSlider title="Intenzita Deficitu (D_it)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
+                                            <SidebarSlider title="Systémové Riziko (R_it)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
                                         </div>
                                     </div>
                                 </div>
