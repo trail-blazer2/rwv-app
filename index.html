@@ -77,25 +77,43 @@
         }
         .node-text-active { fill: #C6F34F !important; }
         
-        .svg-path {
+        .svg-path-base {
             stroke: #232E30;
             stroke-width: 1.5;
-            transition: stroke 0.3s ease;
+            fill: none;
         }
 
-        @keyframes svgDrawIn {
-            0% { stroke-dashoffset: 1; opacity: 0.15; }
+        @keyframes pathReveal {
+            0% { stroke-dashoffset: 1; opacity: 1; }
             100% { stroke-dashoffset: 0; opacity: 1; }
         }
-        @keyframes svgFlow {
-            0% { stroke-dashoffset: 0; }
-            100% { stroke-dashoffset: -0.24; }
+        .path-reveal {
+            stroke-dasharray: 1;
+            stroke-dashoffset: 1;
+            animation: pathReveal 0.6s ease-out forwards;
         }
 
-        .path-active {
-            stroke: #C6F34F !important;
-            stroke-dasharray: 0.06 0.06;
-            animation: svgDrawIn 0.6s ease-out forwards, svgFlow 1.4s linear infinite 0.6s;
+        @keyframes pathFlow {
+            0% { stroke-dashoffset: 0; opacity: 0; }
+            20% { opacity: 1; }
+            100% { stroke-dashoffset: -1; opacity: 1; }
+        }
+        .path-flow {
+            stroke-dasharray: 0.035 0.05;
+            opacity: 0;
+            animation: pathFlow 1.8s linear infinite;
+            animation-delay: 0.6s;
+            animation-fill-mode: forwards;
+        }
+
+        @keyframes spinRing {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .spin-ring {
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: spinRing 3s linear infinite;
         }
 
         /* Ambient Glow Override */
@@ -494,59 +512,73 @@
 
         // --- MATH ENGINE SVG SIMULATION DIAGRAM ---
         const IMPORTANCE_HEIGHT = { 1: 40, 2: 56, 3: 74 };
-        const DIAGRAM_HEIGHT = 480;
+        const DIAGRAM_HEIGHT = 500;
         const NODE_GAP = 14;
+
+        // Restrained, same-family palette (no rainbow) — each category gets one
+        // consistent muted accent, all readable against the dark theme.
+        const CATEGORY_COLORS = {
+            data: '#4FD1C6',        // teal — external data feeds
+            decompose: '#D9A441',   // amber — sub-component math
+            core: '#C6F34F',        // lime — the 3 headline indices + MADR
+            regime: '#9B8FD9',      // muted violet — decision/branching logic
+            equilibrium: '#D9C44F', // warm gold — targets & carry cost
+            sde: '#E0954F',         // orange — iterative Monte Carlo loops
+            kalman: '#4FB8D9',      // cyan — iterative filtering/correction
+            weight: '#B39DDB',      // soft violet — horizon weighting/blending
+            final: '#C6F34F'        // lime — final output
+        };
 
         const COLUMN_DEFS = [
             { x: 10, items: [
-                { key: 'wb', label: 'Světová Banka', phase: 1, importance: 1 },
-                { key: 'fred', label: 'FRED Makro', phase: 1, importance: 1 },
-                { key: 'meteo', label: 'Open-Meteo', phase: 1, importance: 1 },
-                { key: 'eia', label: 'EIA Fyzická Data', phase: 1, importance: 1 },
-                { key: 'manual', label: 'USGS / ICCO Data', phase: 1, importance: 2 },
-                { key: 'yf', label: 'yfinance (Historie)', phase: 1, importance: 1 },
-                { key: 'fut', label: 'Expirace Futures', phase: 1, importance: 1 },
+                { key: 'wb', label: 'Světová Banka', phase: 1, importance: 1, category: 'data' },
+                { key: 'fred', label: 'FRED Makro', phase: 1, importance: 1, category: 'data' },
+                { key: 'meteo', label: 'Open-Meteo', phase: 1, importance: 1, category: 'data' },
+                { key: 'eia', label: 'EIA Data (2/8: Plyn, Ropa)', phase: 1, importance: 1, category: 'data' },
+                { key: 'manual', label: 'USGS/ICCO (6/8: Kovy, Kakao)', phase: 1, importance: 2, category: 'data', detached: true },
+                { key: 'yf', label: 'yfinance (Historie)', phase: 1, importance: 1, category: 'data' },
+                { key: 'fut', label: 'Expirace Futures', phase: 1, importance: 1, category: 'data' },
             ]},
             { x: 190, items: [
-                { key: 'l_it', label: 'Základ. Ekon. L(it)', phase: 2, importance: 1 },
-                { key: 'f_it', label: 'Volatil. Ekon. F(it)', phase: 2, importance: 1 },
-                { key: 'v_t', label: 'Fund. Riziko V(t)', phase: 2, importance: 1 },
-                { key: 'f_r', label: 'Fin. Stres F(r)', phase: 2, importance: 1 },
-                { key: 'lam', label: 'Intenzita Def. Λ(it)', phase: 2, importance: 2 },
-                { key: 'buf', label: 'Adapt. Polštář B(it)', phase: 2, importance: 1 },
-                { key: 'corr', label: 'Korelační Matice (Šok)', phase: 2, importance: 2 },
+                { key: 'l_it', label: 'Základ. Ekon. L(it)', phase: 2, importance: 1, category: 'decompose' },
+                { key: 'f_it', label: 'Volatil. Ekon. F(it)', phase: 2, importance: 1, category: 'decompose' },
+                { key: 'v_t', label: 'Fund. Riziko V(t)', phase: 2, importance: 1, category: 'decompose' },
+                { key: 'f_r', label: 'Fin. Stres F(r)', phase: 2, importance: 1, category: 'decompose' },
+                { key: 'lam', label: 'Intenzita Def. Λ(it)', phase: 2, importance: 2, category: 'decompose' },
+                { key: 'buf', label: 'Adapt. Polštář B(it)', phase: 2, importance: 1, category: 'decompose' },
+                { key: 'corr', label: 'Korelační Matice (Šok)', phase: 2, importance: 2, category: 'data', detached: true },
             ]},
             { x: 370, items: [
-                { key: 'A', label: 'Aktivita (A)', phase: 3, importance: 3 },
-                { key: 'R', label: 'Riziko (R)', phase: 3, importance: 3 },
-                { key: 'D', label: 'Deficit (D)', phase: 3, importance: 3 },
+                { key: 'A', label: 'Aktivita (A)', phase: 3, importance: 3, category: 'core' },
+                { key: 'R', label: 'Riziko (R)', phase: 3, importance: 3, category: 'core' },
+                { key: 'D', label: 'Deficit (D)', phase: 3, importance: 3, category: 'core' },
             ]},
             { x: 530, items: [
-                { key: 'madr', label: 'MADR (a, d, r)', phase: 4, importance: 3 },
-                { key: 'regime', label: 'Markov Režim z(t)', phase: 4, importance: 3 },
-                { key: 'shock', label: 'Index Šoku Q(t)', phase: 4, importance: 2 },
-                { key: 'season', label: 'Sezónnost S(t)', phase: 4, importance: 1 },
+                { key: 'madr', label: 'MADR (a, d, r)', phase: 4, importance: 3, category: 'core' },
+                { key: 'regime', label: 'Markov Režim z(t)', phase: 4, importance: 3, category: 'regime', shape: 'diamond' },
+                { key: 'shock', label: 'Index Šoku Q(t)', phase: 4, importance: 2, category: 'regime' },
+                { key: 'season', label: 'Sezónnost S(t)', phase: 4, importance: 1, category: 'decompose' },
             ]},
             { x: 690, items: [
-                { key: 'M_target', label: 'Základní Cíl M(it)', phase: 5, importance: 2 },
-                { key: 'y_carry', label: 'Náklad Držby c(it)', phase: 5, importance: 1 },
-                { key: 'curve_fit', label: 'Optimalizace f(mkt)', phase: 5, importance: 2 },
+                { key: 'M_target', label: 'Základní Cíl M(it)', phase: 5, importance: 2, category: 'equilibrium' },
+                { key: 'y_carry', label: 'Náklad Držby c(it)', phase: 5, importance: 1, category: 'equilibrium' },
+                { key: 'curve_fit', label: 'Optimalizace f(mkt)', phase: 5, importance: 2, category: 'equilibrium' },
             ]},
             { x: 850, items: [
-                { key: 'dm_base', label: 'SDE dm(t) ×27', phase: 6, importance: 2 },
-                { key: 'dx_mkt', label: 'SDE dx(t) ×27', phase: 6, importance: 2 },
+                { key: 'dm_base', label: 'SDE dm(t) ×27', phase: 6, importance: 2, category: 'sde', shape: 'circle' },
+                { key: 'dx_mkt', label: 'SDE dx(t) ×27', phase: 6, importance: 2, category: 'sde', shape: 'circle' },
             ]},
             { x: 1010, items: [
-                { key: 'kalman', label: 'Kalman Filtr P(str)', phase: 7, importance: 2 },
-                { key: 'f_anchors', label: 'Kotvy E⁻ / E⁺', phase: 7, importance: 2 },
+                { key: 'kalman', label: 'Kalman Filtr P(str)', phase: 7, importance: 2, category: 'kalman', shape: 'circle' },
+                { key: 'f_anchors', label: 'Kotvy E⁻ / E⁺', phase: 7, importance: 2, category: 'kalman' },
             ]},
             { x: 1170, items: [
-                { key: 'alpha', label: 'Strukt. Váha α(τ)', phase: 8, importance: 1 },
-                { key: 'rp', label: 'Rizik. Přirážka RP(τ)', phase: 8, importance: 1 },
-                { key: 'omega', label: 'Interpolace ω', phase: 8, importance: 1 },
+                { key: 'alpha', label: 'Strukt. Váha α(τ)', phase: 8, importance: 1, category: 'weight' },
+                { key: 'rp', label: 'Rizik. Přirážka RP(τ)', phase: 8, importance: 1, category: 'weight' },
+                { key: 'omega', label: 'Interpolace ω', phase: 8, importance: 1, category: 'weight', shape: 'diamond' },
             ]},
             { x: 1330, items: [
-                { key: 'curve', label: 'Finální Křivka (27 bodů)', phase: 9, importance: 3 },
+                { key: 'curve', label: 'Finální Křivka (27 bodů)', phase: 9, importance: 3, category: 'final' },
             ]},
         ];
 
@@ -554,11 +586,19 @@
             const built = {};
             COLUMN_DEFS.forEach(col => {
                 const heights = col.items.map(it => IMPORTANCE_HEIGHT[it.importance] || 40);
-                const totalHeight = heights.reduce((a, b) => a + b, 0) + NODE_GAP * (col.items.length - 1);
+                const extraGaps = col.items.map(it => it.detached ? 22 : 0);
+                const totalHeight = heights.reduce((a, b) => a + b, 0)
+                    + NODE_GAP * (col.items.length - 1)
+                    + extraGaps.reduce((a, b) => a + b, 0);
                 let y = (DIAGRAM_HEIGHT - totalHeight) / 2;
                 col.items.forEach((it, idx) => {
+                    if (extraGaps[idx]) y += extraGaps[idx];
                     const h = heights[idx];
-                    built[it.key] = { x: col.x, y, label: it.label, phase: it.phase, height: h, importance: it.importance };
+                    built[it.key] = {
+                        x: col.x, y, label: it.label, phase: it.phase, height: h,
+                        importance: it.importance, category: it.category,
+                        shape: it.shape || 'rect', detached: !!it.detached
+                    };
                     y += h + NODE_GAP;
                 });
             });
@@ -622,34 +662,99 @@
                 { from: 'omega', to: 'curve', reqPhase: 9 }
             ];
 
-            const renderPath = (conn, i) => {
+            const renderConnection = (conn, i) => {
                 const n1 = nodes[conn.from]; const n2 = nodes[conn.to];
                 const startX = n1.x + 130; const startY = n1.y + n1.height / 2;
                 const endX = n2.x; const endY = n2.y + n2.height / 2;
                 const cp1X = startX + (endX - startX) / 2;
                 const pathD = `M ${startX} ${startY} C ${cp1X} ${startY}, ${cp1X} ${endY}, ${endX} ${endY}`;
                 const isActive = phase >= conn.reqPhase;
+                const color = CATEGORY_COLORS[n2.category] || '#C6F34F';
+
+                if (!isActive) {
+                    return <path key={i} d={pathD} className="svg-path-base" />;
+                }
                 return (
-                    <path
-                        key={i}
-                        d={pathD}
-                        fill="none"
-                        pathLength="1"
-                        className={`svg-path ${isActive ? 'path-active' : ''}`}
-                    />
+                    <g key={i}>
+                        <path d={pathD} pathLength="1" className="svg-path-base path-reveal" style={{ stroke: color }} />
+                        <path d={pathD} pathLength="1" className="svg-path-base path-flow" style={{ stroke: color }} />
+                    </g>
+                );
+            };
+
+            const renderNode = (key, n) => {
+                const isActive = phase >= n.phase;
+                const color = CATEGORY_COLORS[n.category] || '#C6F34F';
+                const activeStyle = isActive ? { stroke: color } : {};
+                const textStyle = isActive ? { fill: color } : {};
+
+                if (n.shape === 'circle') {
+                    const r = n.height / 2;
+                    const cx = n.x + 65;
+                    const cy = n.y + r;
+                    return (
+                        <g key={key} className="svg-node">
+                            {isActive && (
+                                <circle cx={cx} cy={cy} r={r + 9} fill="none" strokeWidth="1.5"
+                                    strokeDasharray="4 6" className="spin-ring"
+                                    style={{ stroke: color, opacity: 0.55 }} />
+                            )}
+                            <circle cx={cx} cy={cy} r={r} strokeWidth="2"
+                                className={`fill-[#0B1011] ${isActive ? '' : 'stroke-rwv-border'}`}
+                                style={activeStyle} />
+                            <text x={cx} y={cy} dominantBaseline="middle" textAnchor="middle"
+                                className={`text-[9px] font-bold font-sans ${isActive ? '' : 'fill-gray-500'}`}
+                                style={textStyle}>
+                                {n.label}
+                            </text>
+                        </g>
+                    );
+                }
+
+                if (n.shape === 'diamond') {
+                    const size = n.height + 24;
+                    const cx = n.x + 65;
+                    const cy = n.y + n.height / 2;
+                    return (
+                        <g key={key} className="svg-node">
+                            <rect x={cx - size / 2} y={cy - size / 2} width={size} height={size} rx="6"
+                                transform={`rotate(45 ${cx} ${cy})`}
+                                className={`fill-[#0B1011] stroke-2 ${isActive ? '' : 'stroke-rwv-border'}`}
+                                style={activeStyle} />
+                            <text x={cx} y={cy} dominantBaseline="middle" textAnchor="middle"
+                                className={`text-[9px] font-bold font-sans ${isActive ? '' : 'fill-gray-500'}`}
+                                style={textStyle}>
+                                {n.label}
+                            </text>
+                        </g>
+                    );
+                }
+
+                return (
+                    <g key={key} transform={`translate(${n.x}, ${n.y})`} className="svg-node">
+                        <rect width="130" height={n.height} rx="8"
+                            strokeDasharray={n.detached ? '5 4' : undefined}
+                            className={`fill-[#0B1011] stroke-2 ${isActive ? '' : 'stroke-rwv-border'}`}
+                            style={activeStyle} />
+                        <text x="65" y={n.height / 2} dominantBaseline="middle" textAnchor="middle"
+                            className={`text-[10px] font-bold font-sans ${isActive ? '' : 'fill-gray-500'}`}
+                            style={textStyle}>
+                            {n.label}
+                        </text>
+                    </g>
                 );
             };
 
             const panelData = [
                 { title: "UKÁZKA VÝPOČTU", desc: "Zde se ukáže průběh výpočtu pomocí celého modelu v pomalé verzi pro ukázku.", metrics: [] },
-                { title: "FÁZE 1: GLOBÁLNÍ SBĚR DAT", desc: "Získávání makro dat (Světová banka, FRED), fyzických fundamentů (EIA pro energie, USGS/ICCO pro kovy a kakao), počasí a historických cen (yfinance) pro pozdější výpočet korelací.", metrics: [{label: "Globální HDP", val: "+2.1%"}, {label: "Jádrová Inflace", val: "3.4%"}, {label: "USGS/ICCO Data", val: "6 komodit"}, {label: "Exp. Futures", val: "N=4"}] },
+                { title: "FÁZE 1: GLOBÁLNÍ SBĚR DAT", desc: "Získávání makro dat (Světová banka, FRED), fyzických fundamentů a historických cen (yfinance) pro výpočet korelací. Dvě samostatné větve pokrývají všech 8 komodit dohromady.", metrics: [{label: "Globální HDP", val: "+2.1%"}, {label: "Jádrová Inflace", val: "3.4%"}, {label: "Celkem komodit", val: "8"}, {label: "Exp. Futures", val: "N=4"}] },
                 { title: "FÁZE 2: ROZDĚLENÍ DÍLČÍCH KOMPONENT", desc: "Rozdělení indikátorů na volatilní a základní meze. Výpočet intenzity deficitu a reálné korelační matice mezi komoditami (z historických výnosů) pro šíření šoků.", metrics: [{label: "Volatilní F(it)", val: "0.62"}, {label: "Základní L(it)", val: "0.55"}, {label: "Intenzita Def. (Λ)", val: "1.44"}, {label: "Korelace (příklad)", val: "0.47"}] },
                 { title: "FÁZE 3: HLAVNÍ MAKRO INDEXY", desc: "Syntéza normalizovaných matic A(it), D(it) a R(it) přes hyperbolické tangenty.", metrics: [{label: "Aktivita (A)", val: "0.58"}, {label: "Deficit (D)", val: "0.74"}, {label: "Systém. Riziko", val: "0.39"}] },
-                { title: "FÁZE 4: MADR & MARKOVOVY REŽIMY", desc: "Centrování parametrů (a, d, r). Index šoku nyní čerpá ze skutečné korelační matice komodit místo pevných odhadů.", metrics: [{label: "Vystředěno (a,d,r)", val: "[.16, .48, -.22]"}, {label: "Pravděp. (π)", val: "[.1, .2, .6, .1]"}, {label: "Šíření šoku (G_zt)", val: "0.09"}] },
+                { title: "FÁZE 4: MADR & MARKOVOVY REŽIMY", desc: "Centrování parametrů (a, d, r). Diamantový uzel značí režim jako rozhodovací bránu — určuje, kterým směrem se dále větví výpočet SDE.", metrics: [{label: "Vystředěno (a,d,r)", val: "[.16, .48, -.22]"}, {label: "Pravděp. (π)", val: "[.1, .2, .6, .1]"}, {label: "Šíření šoku (G_zt)", val: "0.09"}] },
                 { title: "FÁZE 5: CÍLE ROVNOVÁHY, DRŽBA A TRŽNÍ KŘIVKA", desc: "Výpočet dlouhodobého cíle M(it) a nákladů držby c(carry). Následně optimalizace tržní křivky f(mkt) metodou nejmenších čtverců vůči dvěma aktivním futures kontraktům.", metrics: [{label: "Základní Cíl M(it)", val: "4.12"}, {label: "Náklad c(carry)", val: "0.08"}, {label: "Fit křivky f(mkt)", val: "konvergováno"}] },
-                { title: "FÁZE 6: SDE MONTE CARLO (27 KROKŮ)", desc: "Simulace probíhá 27krát po 5denních krocích. Každý krok používá horizontově-závislou sezónnost S(h) a injektuje drift do základní (dm) a tržní (dx) vrstvy.", metrics: [{label: "Zákl. Drift (dm)", val: "+0.012"}, {label: "Trž. Drift (dx)", val: "-0.004"}, {label: "Cesty × Kroky", val: "100 × 27"}] },
-                { title: "FÁZE 7: KALMAN A DVĚ KOTVY FUTURES", desc: "Kalmanovo filtrování opravuje strukturální cenu P(str) v každém z 27 kroků. Tržní křivka f(mkt) se vyhodnocuje na obou sousedních expiračních kotvách E⁻ a E⁺.", metrics: [{label: "Strukt. P(str)", val: "83.15"}, {label: "Kotva E⁻", val: "81.40"}, {label: "Kotva E⁺", val: "82.90"}] },
-                { title: "FÁZE 8: VÁHA A RIZIKOVÁ PŘIRÁŽKA (PO HORIZONTECH)", desc: "Strukturální váha α roste s časovým horizontem (čím dále, tím méně důvěry v tržní data). Riziková přirážka RP a interpolační váha ω se počítají zvlášť pro obě kotvy.", metrics: [{label: "α (krátký horizont)", val: "0.42"}, {label: "α (dlouhý horizont)", val: "0.71"}, {label: "Interpolace (ω)", val: "0.85"}] },
+                { title: "FÁZE 6: SDE MONTE CARLO (27 KROKŮ)", desc: "Kruhové uzly s rotujícím prstencem znázorňují opakované přepočítávání — simulace běží 27krát po 5denních krocích, pokaždé s čerstvým driftem základní (dm) a tržní (dx) vrstvy.", metrics: [{label: "Zákl. Drift (dm)", val: "+0.012"}, {label: "Trž. Drift (dx)", val: "-0.004"}, {label: "Cesty × Kroky", val: "100 × 27"}] },
+                { title: "FÁZE 7: KALMAN A DVĚ KOTVY FUTURES", desc: "Kalmanovo filtrování (rovněž kruhový, iterativní uzel) opravuje strukturální cenu P(str) v každém z 27 kroků. Tržní křivka f(mkt) se vyhodnocuje na obou sousedních expiračních kotvách E⁻ a E⁺.", metrics: [{label: "Strukt. P(str)", val: "83.15"}, {label: "Kotva E⁻", val: "81.40"}, {label: "Kotva E⁺", val: "82.90"}] },
+                { title: "FÁZE 8: VÁHA A RIZIKOVÁ PŘIRÁŽKA (PO HORIZONTECH)", desc: "Strukturální váha α roste s časovým horizontem. Diamantová brána ω kombinuje obě kotvy podle jejich vzdálenosti od cílového data.", metrics: [{label: "α (krátký horizont)", val: "0.42"}, {label: "α (dlouhý horizont)", val: "0.71"}, {label: "Interpolace (ω)", val: "0.85"}] },
                 { title: "FÁZE 9: KOMBINACE KOTEV A FINÁLNÍ VÝSTUP", desc: "Obě kotvy (E⁻, E⁺) se zkombinují do jedné log-ceny podle váhy ω, teprve poté se provede exponenciace — čímž vznikne finální 27bodová forwardová křivka.", metrics: [{label: "T_1 (5 dní)", val: "$82.10"}, {label: "T_2 (10 dní)", val: "$82.45"}, {label: "T_3 (15 dní)", val: "$82.60"}, {label: "T_27 (135 dní)", val: "$91.20"}] }
             ];
 
@@ -669,20 +774,10 @@
                             </button>
                         </div>
                         <div className="flex-1 w-full relative overflow-auto custom-scrollbar">
-                            <div className="min-w-[1600px] min-h-[500px] w-full h-full relative">
+                            <div className="min-w-[1600px] min-h-[520px] w-full h-full relative">
                                 <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 1600 ${DIAGRAM_HEIGHT}`} preserveAspectRatio="xMidYMid meet">
-                                    {connections.map((c, i) => renderPath(c, i))}
-                                    {Object.entries(nodes).map(([key, n]) => {
-                                        const isActive = phase >= n.phase;
-                                        return (
-                                            <g key={key} transform={`translate(${n.x}, ${n.y})`} className="svg-node">
-                                                <rect width="130" height={n.height} rx="8" className={`fill-[#0B1011] stroke-2 ${isActive ? 'node-active' : 'stroke-rwv-border'}`} />
-                                                <text x="65" y={n.height / 2} dominantBaseline="middle" textAnchor="middle" className={`text-[10px] font-bold font-sans ${isActive ? 'node-text-active' : 'fill-gray-500'}`}>
-                                                    {n.label}
-                                                </text>
-                                            </g>
-                                        );
-                                    })}
+                                    {connections.map((c, i) => renderConnection(c, i))}
+                                    {Object.entries(nodes).map(([key, n]) => renderNode(key, n))}
                                 </svg>
                             </div>
                         </div>
