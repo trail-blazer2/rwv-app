@@ -670,6 +670,7 @@
             const [isLogin, setIsLogin] = useState(true);
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
+            const [inviteCode, setInviteCode] = useState('');
             const [error, setError] = useState(null);
             const [loading, setLoading] = useState(false);
 
@@ -682,7 +683,7 @@
                     const res = await fetch(`${API_BASE}${endpoint}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email, password })
+                        body: JSON.stringify({ email, password, invite_code: inviteCode })
                     });
                     
                     const data = await res.json();
@@ -744,6 +745,15 @@
                             value={password} 
                             onChange={e => setPassword(e.target.value)} 
                         />
+                        {!isLogin && (
+                            <input 
+                                type="text" 
+                                placeholder="Registrační kód" 
+                                className="mb-4 bg-rwv-bg/60 border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-olive focus:bg-rwv-bg/80 backdrop-blur-sm transition shadow-inner" 
+                                value={inviteCode} 
+                                onChange={e => setInviteCode(e.target.value)} 
+                            />
+                        )}
                         
                         <button 
                             onClick={handleSubmit} 
