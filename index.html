@@ -15,20 +15,16 @@
                             bg: '#0B1011',       
                             panel: '#151E20',    
                             border: '#232E30',   
-                            olive: '#758749',    /* New primary accent */
+                            lime: '#C6F34F',     /* Original bright accent */
+                            olive: '#758749',    /* Muted olive */
                             darkolive: '#2c2d2a',
                             textMuted: '#6B8286' 
                         }
                     },
                     animation: {
-                        'data-flow': 'dataFlow 1.5s linear infinite',
                         'fade-in': 'fadeIn 0.5s ease-out forwards',
                     },
                     keyframes: {
-                        dataFlow: {
-                            '0%': { strokeDashoffset: '20' },
-                            '100%': { strokeDashoffset: '0' },
-                        },
                         fadeIn: {
                             '0%': { opacity: '0', transform: 'translateY(10px)' },
                             '100%': { opacity: '1', transform: 'translateY(0)' },
@@ -54,14 +50,15 @@
         ::-webkit-scrollbar-thumb { background: #232E30; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #3a4a4d; }
         
-        /* Range Slider Styling - Updated to Olive Palette */
+        /* Range Slider Styling - Restored to Bright Lime */
         input[type=range] { -webkit-appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             height: 14px; width: 14px;
             border-radius: 50%;
-            background: #758749;
+            background: #C6F34F;
             cursor: pointer; margin-top: -5px;
+            box-shadow: 0 0 10px rgba(198, 243, 79, 0.4);
             transition: transform 0.1s ease;
         }
         input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
@@ -74,9 +71,9 @@
         .svg-node { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
         .node-active {
             fill: #151E20 !important;
-            stroke: #758749 !important;
+            stroke: #C6F34F !important;
         }
-        .node-text-active { fill: #758749 !important; }
+        .node-text-active { fill: #C6F34F !important; }
         
         .svg-path {
             stroke: #232E30;
@@ -84,27 +81,79 @@
             transition: stroke 0.3s ease;
         }
         
-        @keyframes dashMove {
-            to { stroke-dashoffset: -24; }
-        }
+        @keyframes dashMove { to { stroke-dashoffset: -24; } }
         
         .path-active {
-            stroke: #758749 !important;
+            stroke: #C6F34F !important;
             stroke-dasharray: 8 8;
             animation: dashMove 0.8s linear infinite;
         }
     </style>
 </head>
-<body class="bg-rwv-bg text-gray-200 min-h-screen font-sans selection:bg-rwv-olive selection:text-rwv-bg overflow-hidden">
+<body class="bg-rwv-bg text-gray-200 min-h-screen font-sans selection:bg-rwv-lime selection:text-rwv-bg overflow-hidden">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
         const API_BASE = "https://ivanmazurov--rwv-engine-production-fastapi-app.modal.run"; 
-        const COMMODITIES = ["Gold", "Gas", "Brent", "Copper", "Palladium", "Platinum", "Cocoa", "Silver"];
+        
+        // Translation Mappings
+        const COMMODITIES = [
+            { id: "Gold", label: "Zlato" }, { id: "Gas", label: "Plyn" },
+            { id: "Brent", label: "Ropa Brent" }, { id: "Copper", label: "Měď" },
+            { id: "Palladium", label: "Palladium" }, { id: "Platinum", label: "Platina" },
+            { id: "Cocoa", label: "Kakao" }, { id: "Silver", label: "Stříbro" }
+        ];
 
-        // Custom Chart.js Plugin for Eased Glowing Light Cone Crosshair
+        const TRANSLATIONS = {
+            economic_activity: "Ekonomická aktivita", deficit: "Deficitní indikátory", systemic_risk: "Systémové riziko",
+            gdp_ppp: "HDP (Parita kupní síly)", gdp_growth: "Růst HDP", peoples_income: "Příjmy obyvatelstva",
+            unemployment: "Míra nezaměstnanosti", inflation: "Míra inflace", population: "Populační růst",
+            fdi: "Přímé zahr. investice", pmi: "Index nákupních manažerů", inventories: "Aktuální zásoby",
+            production: "Objem produkce", max_production: "Maximální kapacita", consumption: "Úroveň spotřeby",
+            regulations: "Regulace a sankce", logistics: "Zpoždění logistiky", weather: "Klimatické anomálie",
+            spread: "Prostorové rozdíly (Spread)", government_debt: "Vládní dluhové zatížení", interest_rate: "Úrokové sazby",
+            gini: "Giniho koeficient (Nerovnost)", poverty_rate: "Míra chudoby", defense_spend: "Výdaje na obranu",
+            rnd_spend: "Výdaje na vědu a výzkum", edu_spend: "Výdaje na školství", health_spend: "Výdaje na zdravotnictví",
+            net_migration: "Čistá migrace", dxy: "Dolarový index (DXY)"
+        };
+
+        // --- CUSTOM CHART PLUGINS ---
+        
+        // 1. Plugin to draw vertical lines ONLY inside the filled area
+        const verticalUnderfillPlugin = {
+            id: 'verticalUnderfill',
+            beforeDatasetsDraw: (chart) => {
+                const ctx = chart.ctx;
+                const meta = chart.getDatasetMeta(0);
+                if (!meta || !meta.data.length) return;
+                
+                const bottomY = chart.scales.y.bottom;
+                
+                ctx.save();
+                // Create a clipping mask matching the area under the curve
+                ctx.beginPath();
+                ctx.moveTo(meta.data[0].x, bottomY);
+                meta.data.forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.lineTo(meta.data[meta.data.length - 1].x, bottomY);
+                ctx.closePath();
+                ctx.clip();
+                
+                // Draw vertical lines every 30px
+                ctx.beginPath();
+                for (let x = chart.scales.x.left; x < chart.scales.x.right; x += 30) {
+                    ctx.moveTo(x, chart.scales.y.top);
+                    ctx.lineTo(x, bottomY);
+                }
+                ctx.strokeStyle = 'rgba(117, 135, 73, 0.08)'; // faint olive
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.restore();
+            }
+        };
+
+        // 2. Plugin for massive light cone and glowing segment
         const crosshairGlowPlugin = {
             id: 'crosshairGlow',
             afterDraw: (chart) => {
@@ -112,57 +161,68 @@
                     const activePoint = chart.tooltip._active[0];
                     const ctx = chart.ctx;
                     
-                    // tooltipPosition provides the smoothly animated (interpolated) coordinates during transit
+                    // tooltipPosition provides smooth interpolated coordinates during transit
                     const { x, y } = activePoint.element.tooltipPosition();
-                    
                     const topY = chart.scales.y.top;
                     const bottomY = chart.scales.y.bottom;
-                    const leftX = chart.scales.x.left;
-                    const rightX = chart.scales.x.right;
 
                     ctx.save();
                     
-                    // Crosshairs (Fading)
+                    // Vertical Crosshair
                     const gradY = ctx.createLinearGradient(0, topY, 0, bottomY);
-                    gradY.addColorStop(0, 'rgba(117, 135, 73, 0)');
-                    gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), 'rgba(117, 135, 73, 0.4)');
-                    gradY.addColorStop(1, 'rgba(117, 135, 73, 0)');
-
-                    const gradX = ctx.createLinearGradient(leftX, 0, rightX, 0);
-                    gradX.addColorStop(0, 'rgba(117, 135, 73, 0)');
-                    gradX.addColorStop(Math.max(0, Math.min(1, (x - leftX) / (rightX - leftX))), 'rgba(117, 135, 73, 0.4)');
-                    gradX.addColorStop(1, 'rgba(117, 135, 73, 0)');
+                    gradY.addColorStop(0, 'rgba(198, 243, 79, 0)');
+                    gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), 'rgba(198, 243, 79, 0.5)');
+                    gradY.addColorStop(1, 'rgba(198, 243, 79, 0)');
 
                     ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x, bottomY);
                     ctx.strokeStyle = gradY; ctx.lineWidth = 1; ctx.stroke();
-
-                    ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(rightX, y);
-                    ctx.strokeStyle = gradX; ctx.lineWidth = 1; ctx.stroke();
                     
-                    // Large glowing gradient circle (Light cone)
-                    const radGrad = ctx.createRadialGradient(x, y, 0, x, y, 60);
-                    radGrad.addColorStop(0, 'rgba(117, 135, 73, 0.5)'); // Inner core glow
-                    radGrad.addColorStop(1, 'rgba(117, 135, 73, 0)');   // Smooth fade to invisible
+                    // Massive smooth gradient light cone
+                    const radGrad = ctx.createRadialGradient(x, y, 0, x, y, 200);
+                    radGrad.addColorStop(0, 'rgba(198, 243, 79, 0.25)'); // Bright inner core
+                    radGrad.addColorStop(1, 'rgba(198, 243, 79, 0)');    // Very soft fade
                     
                     ctx.beginPath();
-                    ctx.arc(x, y, 60, 0, 2 * Math.PI);
+                    ctx.arc(x, y, 200, 0, 2 * Math.PI);
                     ctx.fillStyle = radGrad;
                     ctx.fill();
 
-                    // Tiny solid center point
+                    // Igniting the graph line locally (drawing a bezier segment over the active point)
+                    const points = chart.getDatasetMeta(0).data;
+                    const index = activePoint.index;
+                    if (index > 0 && index < points.length - 1) {
+                        const prev = points[index - 1];
+                        const curr = points[index];
+                        const next = points[index + 1];
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(prev.x, prev.y);
+                        // Trace native curve tension
+                        ctx.bezierCurveTo(prev.cp2x, prev.cp2y, curr.cp1x, curr.cp1y, curr.x, curr.y);
+                        ctx.bezierCurveTo(curr.cp2x, curr.cp2y, next.cp1x, next.cp1y, next.x, next.y);
+                        
+                        ctx.strokeStyle = '#C6F34F'; // Bright lime
+                        ctx.lineWidth = 4;
+                        ctx.shadowColor = '#C6F34F';
+                        ctx.shadowBlur = 15;
+                        ctx.stroke();
+                    }
+
+                    // Solid center dot
                     ctx.beginPath();
-                    ctx.arc(x, y, 4, 0, 2 * Math.PI);
-                    ctx.fillStyle = '#758749'; 
+                    ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#C6F34F'; 
+                    ctx.shadowBlur = 10;
                     ctx.fill();
 
                     ctx.restore();
                 }
             }
         };
-        Chart.register(crosshairGlowPlugin);
+        Chart.register(verticalUnderfillPlugin, crosshairGlowPlugin);
 
         // --- DASHBOARD CHART COMPONENT ---
-        function ProjectionChart({ data, commodity, isSimulating }) {
+        function ProjectionChart({ data, commodityLabel, isSimulating }) {
             const canvasRef = useRef(null);
             const chartInstanceRef = useRef(null);
 
@@ -175,9 +235,9 @@
                 if (!chartInstanceRef.current) {
                     const ctx = canvasRef.current.getContext('2d');
                     
-                    // Very faint gradient fill for the chart body
+                    // Base Olive Gradient for fill
                     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-                    gradient.addColorStop(0, 'rgba(117, 135, 73, 0.15)'); 
+                    gradient.addColorStop(0, 'rgba(117, 135, 73, 0.4)'); 
                     gradient.addColorStop(1, 'rgba(117, 135, 73, 0)');
 
                     chartInstanceRef.current = new Chart(ctx, {
@@ -185,14 +245,14 @@
                         data: {
                             labels,
                             datasets: [{
-                                label: `Predikce ${commodity}`,
+                                label: `Predikce`,
                                 data: prices,
-                                borderColor: '#758749',
+                                borderColor: '#758749', // Olive line
                                 backgroundColor: gradient,
                                 borderWidth: 2,
                                 tension: 0.4, 
                                 pointRadius: 0, 
-                                pointHoverRadius: 0, // Handled by custom light cone plugin
+                                pointHoverRadius: 0, 
                                 fill: true,
                             }]
                         },
@@ -200,28 +260,21 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             animation: { duration: 600, easing: 'easeOutQuart' },
-                            // Smooth easing for the tooltip/hover state traversing the line
+                            // Smooth in-out easing for hover tracking
                             hover: { animationDuration: 400 },
                             interaction: { intersect: false, mode: 'index' },
                             plugins: {
                                 legend: { display: false },
                                 tooltip: {
                                     backgroundColor: '#151E20', titleColor: '#6B8286',
-                                    bodyColor: '#758749', borderColor: '#232E30',
+                                    bodyColor: '#C6F34F', borderColor: '#232E30',
                                     borderWidth: 1, padding: 12, displayColors: false,
-                                    animation: { duration: 250 } 
+                                    animation: { duration: 300, easing: 'easeInOutQuad' } 
                                 }
                             },
                             scales: {
-                                x: { 
-                                    ticks: { color: '#6B8286', font: { size: 11 } }, 
-                                    // Faint vertical lines inside the chart
-                                    grid: { display: true, color: 'rgba(117, 135, 73, 0.05)', drawBorder: false } 
-                                },
-                                y: { 
-                                    ticks: { color: '#6B8286', font: { size: 11 } }, 
-                                    grid: { display: false } 
-                                }
+                                x: { ticks: { color: '#6B8286', font: { size: 11, family: 'system-ui' } }, grid: { display: false } },
+                                y: { ticks: { color: '#6B8286', font: { size: 11, family: 'system-ui' } }, grid: { display: false } }
                             }
                         }
                     });
@@ -230,7 +283,7 @@
                     chartInstanceRef.current.data.datasets[0].data = prices;
                     chartInstanceRef.current.update(); 
                 }
-            }, [data, commodity]);
+            }, [data, commodityLabel]);
 
             useEffect(() => {
                 return () => { if (chartInstanceRef.current) chartInstanceRef.current.destroy(); }
@@ -243,12 +296,12 @@
                         
                         <div className="h-6 flex items-center">
                             {isSimulating || data.length === 0 ? (
-                                <span className="text-rwv-olive font-mono text-xs font-bold animate-pulse tracking-widest bg-rwv-olive/10 px-3 py-1 rounded-md">
-                                    PŘEPOČÍTÁVÁM
+                                <span className="text-rwv-lime text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
+                                    PŘEPOČÍTÁVÁM SDE
                                 </span>
                             ) : (
                                 <span className="text-xs text-rwv-textMuted flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-rwv-olive"></div>
+                                    <div className="w-2 h-2 rounded-full bg-rwv-lime"></div>
                                     Synchronizováno
                                 </span>
                             )}
@@ -269,13 +322,9 @@
             useEffect(() => {
                 let timer;
                 if (phase > 0 && phase < 9) {
-                    timer = setTimeout(() => {
-                        setPhase(p => p + 1);
-                    }, 4000); 
+                    timer = setTimeout(() => { setPhase(p => p + 1); }, 4000); 
                 } else if (phase === 9) {
-                    timer = setTimeout(() => {
-                        setPhase(0); 
-                    }, 7000); 
+                    timer = setTimeout(() => { setPhase(0); }, 7000); 
                 }
                 return () => clearTimeout(timer);
             }, [phase]);
@@ -286,7 +335,6 @@
             };
 
             const nodes = {
-                // Phase 1: Raw Sources
                 wb: { x: 10, y: 30, label: "Světová Banka", phase: 1 },
                 fred: { x: 10, y: 100, label: "FRED Makro", phase: 1 },
                 meteo: { x: 10, y: 170, label: "Open-Meteo", phase: 1 },
@@ -294,7 +342,6 @@
                 yf: { x: 10, y: 310, label: "yfinance (Rozdíly)", phase: 1 },
                 fut: { x: 10, y: 380, label: "Expirace Futures", phase: 1 },
 
-                // Phase 2: Sub-Component Formulas
                 l_it: { x: 170, y: 30, label: "Základ. Ekon. L(it)", phase: 2 },
                 f_it: { x: 170, y: 100, label: "Volatil. Ekon. F(it)", phase: 2 },
                 v_t: { x: 170, y: 170, label: "Fund. Riziko V(t)", phase: 2 },
@@ -302,35 +349,28 @@
                 lam: { x: 170, y: 310, label: "Intenzita Def. Λ(it)", phase: 2 },
                 buf: { x: 170, y: 380, label: "Adapt. Polštář B(it)", phase: 2 },
 
-                // Phase 3: Core Indices
                 A: { x: 330, y: 65, label: "Aktivita (A)", phase: 3 },
                 R: { x: 330, y: 205, label: "Riziko (R)", phase: 3 },
                 D: { x: 330, y: 345, label: "Deficit (D)", phase: 3 },
 
-                // Phase 4: Regimes & Modifiers
                 madr: { x: 490, y: 65, label: "MADR (a, d, r)", phase: 4 },
                 regime: { x: 490, y: 160, label: "Markov Režim z(t)", phase: 4 },
                 shock: { x: 490, y: 255, label: "Index Šoku Q(t)", phase: 4 },
                 season: { x: 490, y: 350, label: "Sezónnost S(t)", phase: 4 },
 
-                // Phase 5: Equilibrium Targets
                 M_target: { x: 650, y: 65, label: "Základní Cíl M(it)", phase: 5 },
                 y_carry: { x: 650, y: 255, label: "Náklad Držby c(it)", phase: 5 },
 
-                // Phase 6: SDE Layers
                 dm_base: { x: 810, y: 65, label: "Základní SDE dm(t)", phase: 6 },
                 dx_mkt: { x: 810, y: 160, label: "Tržní SDE dx(t)", phase: 6 },
 
-                // Phase 7: Kalman & Market Curves
                 kalman: { x: 970, y: 110, label: "Kalman Filtr P(str)", phase: 7 },
                 f_mkt: { x: 970, y: 230, label: "Tržní Křivka f(mkt)", phase: 7 },
                 rp: { x: 970, y: 310, label: "Riziková Přirážka RP", phase: 7 },
 
-                // Phase 8: Weighting & Interpolation
                 alpha: { x: 1130, y: 170, label: "Strukt. Váha (α)", phase: 8 },
                 omega: { x: 1130, y: 270, label: "Časová Interpol. (ω)", phase: 8 },
 
-                // Phase 9: Final Output
                 curve: { x: 1290, y: 220, label: "Křivka 27 Kroků", phase: 9 }
             };
 
@@ -390,7 +430,7 @@
                             </div>
                             <button 
                                 onClick={triggerPlay}
-                                className={`px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${phase > 0 ? 'bg-rwv-darkolive text-white border border-rwv-border hover:bg-rwv-border' : 'bg-rwv-olive text-rwv-bg hover:bg-rwv-olive/80'}`}
+                                className={`px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${phase > 0 ? 'bg-rwv-border text-white hover:bg-gray-700' : 'bg-rwv-lime text-rwv-bg hover:bg-rwv-lime/80 shadow-[0_0_15px_rgba(198,243,79,0.3)]'}`}
                             >
                                 {phase > 0 ? "ZASTAVIT TELEMETRII" : "▶ SPUSTIT TELEMETRII"}
                             </button>
@@ -416,15 +456,15 @@
                     </div>
                     <div className="h-44 bg-rwv-panel border border-t-0 border-rwv-border mx-6 mb-6 rounded-b-2xl p-6 flex flex-col shrink-0 transition-all duration-300 shadow-2xl">
                         <div className="flex items-center gap-3 mb-2">
-                            <div className={`w-2 h-2 rounded-full ${phase > 0 ? 'bg-rwv-olive animate-pulse' : 'bg-gray-600'}`}></div>
-                            <h3 className="text-rwv-olive font-mono text-sm font-bold tracking-widest">{panelData[phase].title}</h3>
+                            <div className={`w-2 h-2 rounded-full ${phase > 0 ? 'bg-rwv-lime animate-pulse' : 'bg-gray-600'}`}></div>
+                            <h3 className="text-rwv-lime font-sans font-bold uppercase tracking-widest text-sm">{panelData[phase].title}</h3>
                         </div>
-                        <p className="text-gray-400 text-xs mb-5 font-mono ml-5">{panelData[phase].desc}</p>
+                        <p className="text-gray-400 text-xs mb-5 font-sans ml-5">{panelData[phase].desc}</p>
                         <div className="flex gap-4 ml-5">
                             {panelData[phase].metrics.map((m, i) => (
-                                <div key={i} className="bg-rwv-bg border border-rwv-border rounded-lg p-3 min-w-[170px] flex flex-col justify-center transition-all duration-500 hover:border-rwv-olive/50 hover:bg-rwv-olive/5">
+                                <div key={i} className="bg-rwv-bg border border-rwv-border rounded-lg p-3 min-w-[170px] flex flex-col justify-center transition-all duration-500 hover:border-rwv-lime/50 hover:bg-rwv-lime/5">
                                     <div className="text-rwv-textMuted text-[10px] uppercase font-bold tracking-wider mb-1">{m.label}</div>
-                                    <div className="text-white font-mono text-sm tracking-wide">{m.val}</div>
+                                    <div className="text-white font-sans font-semibold text-sm tracking-wide">{m.val}</div>
                                 </div>
                             ))}
                         </div>
@@ -480,13 +520,15 @@
                             {Object.entries(healthData).map(([category, metrics]) => (
                                 <div key={category} className="mb-4 last:mb-0">
                                     <h4 className="text-[10px] font-bold uppercase text-rwv-textMuted mb-2 tracking-widest border-b border-rwv-border pb-1">
-                                        {category.replace('_', ' ')}
+                                        {TRANSLATIONS[category] || category.replace('_', ' ')}
                                     </h4>
                                     <ul className="space-y-1.5">
                                         {Object.entries(metrics).map(([key, info]) => (
                                             <li key={key} className="flex justify-between items-center text-xs">
-                                                <span className="text-gray-400 truncate w-32">{key.replace('_', ' ')}</span>
-                                                <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${info.status.includes('OK') ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
+                                                <span className="text-gray-400 truncate w-32" title={TRANSLATIONS[key] || key}>
+                                                    {TRANSLATIONS[key] || key.replace('_', ' ')}
+                                                </span>
+                                                <span className={`font-sans font-semibold text-[10px] px-1.5 py-0.5 rounded ${info.status.includes('OK') ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
                                                     {info.status}
                                                 </span>
                                             </li>
@@ -506,7 +548,7 @@
             const [loadProgress, setLoadProgress] = useState(0);
 
             const [viewTab, setViewTab] = useState('dashboard'); 
-            const [selectedCommodity, setSelectedCommodity] = useState("Brent");
+            const [selectedCommodityId, setSelectedCommodityId] = useState("Brent");
             const [defaultPredictions, setDefaultPredictions] = useState(null);
             const [chartData, setChartData] = useState([]);
             const [healthData, setHealthData] = useState(null);
@@ -515,7 +557,7 @@
             const [isSimulating, setIsSimulating] = useState(false);
             const [error, setError] = useState(null);
 
-            // 1. Initial Fast Fake Loading Animation
+            // Fast Loading Animation
             useEffect(() => {
                 const interval = setInterval(() => {
                     setLoadProgress(p => {
@@ -526,11 +568,11 @@
                         }
                         return p + 6; 
                     });
-                }, 40); // Will take ~700ms to complete
+                }, 40); 
                 return () => clearInterval(interval);
             }, []);
 
-            // 2. Background Data Fetching
+            // Background Data Fetching
             useEffect(() => {
                 Promise.all([
                     fetch(`${API_BASE}/api/v1/predict`).then(res => res.json()),
@@ -549,16 +591,16 @@
                 });
             }, []);
 
-            // 3. Set Chart when Commodity Changes
+            // Set Chart when Commodity Changes
             useEffect(() => {
-                if (defaultPredictions && defaultPredictions[selectedCommodity]) {
-                    const data = defaultPredictions[selectedCommodity];
+                if (defaultPredictions && defaultPredictions[selectedCommodityId]) {
+                    const data = defaultPredictions[selectedCommodityId];
                     setSliders({ A_it: data.indices.A, D_it: data.indices.D, R_it: data.indices.R });
                     setChartData(data.projection_curve);
                 }
-            }, [selectedCommodity, defaultPredictions]);
+            }, [selectedCommodityId, defaultPredictions]);
 
-            // 4. Debounced Custom Slider Simulation
+            // Debounced Custom Slider Simulation
             useEffect(() => {
                 if (!defaultPredictions) return;
                 const timer = setTimeout(() => {
@@ -567,7 +609,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            commodity: selectedCommodity,
+                            commodity: selectedCommodityId,
                             A_it: parseFloat(sliders.A_it),
                             D_it: parseFloat(sliders.D_it),
                             R_it: parseFloat(sliders.R_it)
@@ -585,7 +627,7 @@
                 }, 400); 
 
                 return () => clearTimeout(timer);
-            }, [sliders, selectedCommodity]);
+            }, [sliders, selectedCommodityId]);
 
             const handleSliderChange = (e, key) => {
                 setSliders(prev => ({ ...prev, [key]: parseFloat(e.target.value) }));
@@ -595,18 +637,19 @@
             if (!appReady) {
                 return (
                     <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg">
-                        <img src="https://placehold.co/240x80/151E20/6B8286?text=LOGO+ZDE" alt="Logo" className="mb-8 h-12 object-contain opacity-80" />
+                        <img src="https://placehold.co/240x80/0B1011/6B8286?text=LOGO+ZDE" alt="Logo" className="mb-8 h-12 object-contain opacity-80" />
                         <div className="w-64 h-2 bg-rwv-panel rounded-full overflow-hidden border border-rwv-border">
-                            <div className="h-full bg-gradient-to-r from-rwv-darkolive to-rwv-olive transition-all duration-75 ease-linear" style={{ width: `${loadProgress}%` }}></div>
+                            <div className="h-full bg-rwv-lime transition-all duration-75 ease-linear" style={{ width: `${loadProgress}%` }}></div>
                         </div>
-                        <p className="mt-4 text-[10px] font-mono text-rwv-textMuted uppercase tracking-widest">Inicializace...</p>
+                        <p className="mt-4 text-[10px] font-sans font-medium text-rwv-textMuted uppercase tracking-widest">Inicializace...</p>
                     </div>
                 );
             }
 
-            if (error) return <div className="flex items-center justify-center min-h-screen text-red-500 font-mono">{error}</div>;
+            if (error) return <div className="flex items-center justify-center min-h-screen text-red-500 font-sans font-semibold">{error}</div>;
 
-            const spotPrice = defaultPredictions?.[selectedCommodity]?.spot_price || 0.00;
+            const spotPrice = defaultPredictions?.[selectedCommodityId]?.spot_price || 0.00;
+            const currentLabel = COMMODITIES.find(c => c.id === selectedCommodityId)?.label || selectedCommodityId;
 
             return (
                 <div className="flex flex-col h-screen overflow-hidden animate-fade-in">
@@ -615,10 +658,6 @@
                     <div className="h-16 bg-rwv-panel border-b border-rwv-border flex items-center justify-between px-6 shrink-0 z-30">
                         <div className="flex items-center gap-4">
                             <img src="https://placehold.co/120x40/151E20/6B8286?text=LOGO+ZDE" alt="Logo" className="h-8 object-contain opacity-90" />
-                            <div className="ml-2 border-l border-rwv-border pl-4">
-                                <h1 className="text-lg font-bold text-white tracking-tight leading-none">REALWORLDVIEW</h1>
-                                <p className="text-[10px] text-rwv-olive tracking-widest uppercase mt-0.5">Matematické Jádro</p>
-                            </div>
                         </div>
                         
                         <div className="flex gap-2 bg-rwv-bg p-1 rounded-lg border border-rwv-border">
@@ -655,15 +694,15 @@
                                         <div className="grid grid-cols-2 gap-2">
                                             {COMMODITIES.map(c => (
                                                 <button
-                                                    key={c}
-                                                    onClick={() => setSelectedCommodity(c)}
+                                                    key={c.id}
+                                                    onClick={() => setSelectedCommodityId(c.id)}
                                                     className={`w-full text-center px-2 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 border ${
-                                                        selectedCommodity === c 
+                                                        selectedCommodityId === c.id 
                                                         ? 'bg-gradient-to-br from-rwv-darkolive to-rwv-olive text-white border-transparent' 
                                                         : 'bg-rwv-bg text-gray-400 border-rwv-border hover:border-rwv-textMuted hover:text-white'
                                                     }`}
                                                 >
-                                                    {c}
+                                                    {c.label}
                                                 </button>
                                             ))}
                                         </div>
@@ -674,9 +713,9 @@
                                     <div>
                                         <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-4">Živé Ladění Parametrů</h2>
                                         <div className="flex flex-col gap-6">
-                                            <SidebarSlider title="Ekonomická Aktivita (A_it)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
-                                            <SidebarSlider title="Intenzita Deficitu (D_it)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
-                                            <SidebarSlider title="Systémové Riziko (R_it)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
+                                            <SidebarSlider title="Ekonomická Aktivita (A)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
+                                            <SidebarSlider title="Intenzita Deficitu (D)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
+                                            <SidebarSlider title="Systémové Riziko (R)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
                                         </div>
                                     </div>
                                 </div>
@@ -690,28 +729,28 @@
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-rwv-textMuted text-sm font-medium">Trh /</span>
-                                            <span className="text-rwv-olive text-sm font-bold uppercase tracking-wider">{selectedCommodity}</span>
+                                            <span className="text-rwv-lime text-sm font-bold uppercase tracking-wider">{currentLabel}</span>
                                         </div>
-                                        <h2 className="text-4xl font-bold text-white tracking-tight">{selectedCommodity} <span className="text-gray-500 font-light">/ USD</span></h2>
+                                        <h2 className="text-4xl font-bold text-white tracking-tight">{currentLabel} <span className="text-gray-500 font-light">/ USD</span></h2>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-xs text-rwv-textMuted uppercase tracking-widest mb-1">Spotová Cena</p>
-                                        <p className="text-4xl font-mono font-bold text-white">${spotPrice.toFixed(2)}</p>
+                                        <p className="text-4xl font-sans font-semibold text-white">${spotPrice.toFixed(2)}</p>
                                     </div>
                                 </header>
-                                <ProjectionChart data={chartData} commodity={selectedCommodity} isSimulating={isSimulating} />
+                                <ProjectionChart data={chartData} commodityLabel={currentLabel} isSimulating={isSimulating} />
                                 <Phase3LockedFeatures />
                             </div>
                         ) : viewTab === 'simulation' ? (
                             <MathSimulationTab />
                         ) : (
                             // Debug/Dev Tab
-                            <div className="flex-1 p-10 overflow-y-auto bg-rwv-bg font-mono">
+                            <div className="flex-1 p-10 overflow-y-auto bg-rwv-bg font-sans">
                                 <div className="max-w-3xl mx-auto">
                                     <h2 className="text-3xl font-bold text-yellow-400 mb-2 border-b border-yellow-400/20 pb-4">Výstup pro vývojáře (Debug)</h2>
                                     <div className="mb-8 mt-6">
-                                        <span className="text-rwv-textMuted uppercase tracking-widest text-xs">Aktivní datový tok komodity</span>
-                                        <div className="text-2xl text-white mt-1">{selectedCommodity} / USD</div>
+                                        <span className="text-rwv-textMuted uppercase tracking-widest text-xs font-semibold">Aktivní datový tok komodity</span>
+                                        <div className="text-2xl text-white mt-1 font-semibold">{currentLabel} / USD</div>
                                     </div>
                                     <div className="bg-rwv-panel p-6 rounded-xl border border-rwv-border shadow-xl">
                                         <h3 className="text-gray-300 text-sm font-bold mb-4 uppercase tracking-wider">Surová matice 27 kroků projekce</h3>
@@ -719,13 +758,13 @@
                                             <ul className="space-y-2 text-sm">
                                                 {chartData.map((d, i) => (
                                                     <li key={i} className="flex justify-between border-b border-rwv-border/50 pb-1 hover:bg-rwv-border/30 px-2 rounded transition">
-                                                        <span className="text-gray-500">Krok {i+1} <span className="text-gray-600">({d.day} dní)</span></span>
-                                                        <span className="text-rwv-olive font-bold">${d.price.toFixed(2)}</span>
+                                                        <span className="text-gray-500 font-semibold">Krok {i+1} <span className="text-gray-600">({d.day} dní)</span></span>
+                                                        <span className="text-rwv-lime font-bold">${d.price.toFixed(2)}</span>
                                                     </li>
                                                 ))}
                                             </ul>
                                         ) : (
-                                            <span className="text-red-400">Matice je prázdná. Žádná data nebyla vypočítána.</span>
+                                            <span className="text-red-400 font-semibold">Matice je prázdná. Žádná data nebyla vypočítána.</span>
                                         )}
                                     </div>
                                 </div>
@@ -744,12 +783,12 @@
                 <div className="flex flex-col">
                     <div className="flex justify-between items-center mb-2">
                         <label className="text-xs font-semibold text-gray-300">{title}</label>
-                        <span className="font-mono text-xs font-bold text-rwv-olive bg-rwv-olive/10 px-2 py-0.5 rounded border border-rwv-olive/30">
+                        <span className="font-sans font-semibold text-xs text-rwv-lime bg-rwv-lime/10 px-2 py-0.5 rounded border border-rwv-lime/30">
                             {value.toFixed(2)}
                         </span>
                     </div>
                     <input type="range" min="0.00" max="1.00" step="0.01" value={value} onChange={onChange} />
-                    <div className="flex justify-between text-[10px] text-rwv-textMuted mt-1.5 font-mono">
+                    <div className="flex justify-between text-[10px] text-rwv-textMuted mt-1.5 font-sans font-medium">
                         <span>0.00</span>
                         <span>1.00</span>
                     </div>
