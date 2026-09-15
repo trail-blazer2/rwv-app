@@ -174,7 +174,29 @@
         .floating-line-1 { animation: float-line 14s ease-in-out infinite; }
         .floating-line-2 { animation: float-line 20s ease-in-out infinite reverse; animation-delay: -5s; }
         .floating-line-3 { animation: float-line 17s ease-in-out infinite; animation-delay: -2s; }
-        
+
+        /* ===== MOBILE-ONLY OVERRIDES (never affect >=768px / desktop) ===== */
+        @media (max-width: 767px) {
+            body {
+                overflow-y: auto !important;
+                overflow-x: hidden !important;
+            }
+            /* Allow the whole app shell to scroll vertically on small screens
+               instead of being clipped by overflow-hidden containers designed
+               for a fixed-height desktop layout. */
+            .rwv-mobile-scroll-shell {
+                height: auto !important;
+                min-height: 100vh;
+                overflow: visible !important;
+            }
+            .rwv-mobile-scroll-area {
+                overflow: visible !important;
+            }
+            /* Slightly smaller thumb on touch to keep sliders easy to grab */
+            input[type=range]::-webkit-slider-thumb {
+                height: 18px; width: 18px; margin-top: -7px;
+            }
+        }
     </style>
 </head>
 <body class="bg-rwv-bg text-gray-200 min-h-screen font-sans selection:bg-rwv-lime selection:text-rwv-bg overflow-hidden">
@@ -302,7 +324,7 @@
             },
             afterDatasetsDraw: (chart) => {
                 const isHovered = chart.tooltip?._active?.length > 0;
-                const container = chart.canvas.closest('.h-\\[500px\\]') || chart.canvas.parentElement.parentElement;
+                const container = chart.canvas.closest('.h-\\[500px\\]') || chart.canvas.closest('.h-\\[320px\\]') || chart.canvas.parentElement.parentElement;
                 
                 let glowLayer = null;
                 if (container) {
@@ -482,20 +504,20 @@
             }, []);
 
             return (
-                <div className="relative w-full h-[500px] premium-panel p-6 shadow-2xl flex-1 flex flex-col overflow-hidden">
+                <div className="relative w-full h-[320px] md:h-[500px] premium-panel p-4 md:p-6 shadow-2xl flex-1 flex flex-col overflow-hidden">
                     
                     <div className="absolute top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
-                    <div className="flex justify-between items-center mb-4 z-20">
-                        <h3 className="text-lg font-bold text-white tracking-wide">Trajektorie Monte Carlo</h3>
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-4 z-20">
+                        <h3 className="text-base md:text-lg font-bold text-white tracking-wide">Trajektorie Monte Carlo</h3>
                         
                         <div className="h-6 flex items-center">
                             {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
-                                <span className="text-rwv-lime text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
+                                <span className="text-rwv-lime text-[10px] md:text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
                                     PŘEPOČÍTÁVÁM SDE
                                 </span>
                             ) : (
-                                <span className="text-xs text-rwv-textMuted flex items-center gap-2">
+                                <span className="text-[10px] md:text-xs text-rwv-textMuted flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full bg-rwv-lime"></div>
                                     Synchronizováno
                                 </span>
@@ -759,16 +781,16 @@
             ];
 
             return (
-                <div className="flex-1 flex flex-col h-full overflow-hidden bg-rwv-bg">
-                    <div className="flex-1 bg-rwv-panel m-6 mb-0 rounded-t-2xl border border-rwv-border p-6 flex flex-col relative shadow-2xl overflow-hidden">
-                        <div className="flex justify-between items-center mb-6 shrink-0 z-10">
+                <div className="flex-1 flex flex-col h-full overflow-hidden bg-rwv-bg rwv-mobile-scroll-shell">
+                    <div className="flex-1 bg-rwv-panel m-3 md:m-6 mb-0 rounded-t-2xl border border-rwv-border p-4 md:p-6 flex flex-col relative shadow-2xl overflow-hidden rwv-mobile-scroll-area">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0 mb-4 md:mb-6 shrink-0 z-10">
                             <div>
-                                <h2 className="text-2xl font-bold text-white tracking-tight">Tok Matematické Architektury</h2>
-                                <p className="text-rwv-textMuted text-sm mt-1">Telemetrie dat ve zpomalené verzi přes systém vzorců</p>
+                                <h2 className="text-lg md:text-2xl font-bold text-white tracking-tight">Tok Matematické Architektury</h2>
+                                <p className="text-rwv-textMuted text-xs md:text-sm mt-1">Telemetrie dat ve zpomalené verzi přes systém vzorců</p>
                             </div>
                             <button 
                                 onClick={triggerPlay}
-                                className={`px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${phase > 0 ? 'bg-rwv-darkolive text-white border border-rwv-border hover:bg-rwv-border' : 'bg-rwv-lime text-rwv-bg hover:bg-rwv-lime/80 shadow-[0_0_15px_rgba(198,243,79,0.3)]'}`}
+                                className={`w-full sm:w-auto px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${phase > 0 ? 'bg-rwv-darkolive text-white border border-rwv-border hover:bg-rwv-border' : 'bg-rwv-lime text-rwv-bg hover:bg-rwv-lime/80 shadow-[0_0_15px_rgba(198,243,79,0.3)]'}`}
                             >
                                 {phase > 0 ? "ZASTAVIT VÝPOČET" : "UKÁZKOVÝ VÝPOČET"}
                             </button>
@@ -782,15 +804,15 @@
                             </div>
                         </div>
                     </div>
-                    <div className="h-44 bg-rwv-panel border border-t-0 border-rwv-border mx-6 mb-6 rounded-b-2xl p-6 flex flex-col shrink-0 transition-all duration-300 shadow-2xl">
+                    <div className="min-h-[11rem] md:h-44 bg-rwv-panel border border-t-0 border-rwv-border mx-3 md:mx-6 mb-3 md:mb-6 rounded-b-2xl p-4 md:p-6 flex flex-col shrink-0 transition-all duration-300 shadow-2xl">
                         <div className="flex items-center gap-3 mb-2">
                             <div className={`w-2 h-2 rounded-full ${phase > 0 ? 'bg-rwv-lime animate-pulse' : 'bg-gray-600'}`}></div>
-                            <h3 className="text-rwv-lime font-sans font-bold uppercase tracking-widest text-sm">{panelData[phase].title}</h3>
+                            <h3 className="text-rwv-lime font-sans font-bold uppercase tracking-widest text-xs md:text-sm">{panelData[phase].title}</h3>
                         </div>
-                        <p className="text-gray-400 text-xs mb-5 font-sans ml-5">{panelData[phase].desc}</p>
-                        <div className="flex gap-4 ml-5">
+                        <p className="text-gray-400 text-xs mb-4 md:mb-5 font-sans ml-5">{panelData[phase].desc}</p>
+                        <div className="flex flex-wrap gap-3 md:gap-4 ml-5">
                             {panelData[phase].metrics.map((m, i) => (
-                                <div key={i} className="bg-rwv-bg border border-rwv-border rounded-lg p-3 min-w-[170px] flex flex-col justify-center transition-all duration-500 hover:border-rwv-lime/50 hover:bg-rwv-lime/5">
+                                <div key={i} className="bg-rwv-bg border border-rwv-border rounded-lg p-3 min-w-[150px] md:min-w-[170px] flex flex-col justify-center transition-all duration-500 hover:border-rwv-lime/50 hover:bg-rwv-lime/5">
                                     <div className="text-rwv-textMuted text-[10px] uppercase font-bold tracking-wider mb-1">{m.label}</div>
                                     <div className="text-white font-sans font-semibold text-sm tracking-wide">{m.val}</div>
                                 </div>
@@ -805,7 +827,7 @@
         function Phase3LockedFeatures() {
             const features = ["Atribuce Faktorů", "Křivky Pravděpodobnosti", "Momentum Indexu"];
             return (
-                <div className="mt-6 premium-panel p-5">
+                <div className="mt-6 premium-panel p-4 md:p-5">
                     <div className="flex items-center justify-between mb-4">
                         <h4 className="text-sm font-bold text-gray-300">Pokročilá Analytika (Fáze 3)</h4>
                         <span className="text-xs bg-rwv-border text-rwv-textMuted px-2 py-1 rounded-md uppercase tracking-wider font-bold">Připravuje se</span>
@@ -867,7 +889,7 @@
             };
 
             return (
-                <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg font-sans relative overflow-hidden animate-fade-in">
+                <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg font-sans relative overflow-hidden animate-fade-in px-4">
                     
                     {/* Animated Background SVG Lines (Hardware Accelerated) */}
                     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
@@ -881,11 +903,11 @@
                     </div>
 
                     {/* Liquid Glass Auth Box */}
-                    <div className="w-96 liquid-glass-panel p-8 flex flex-col relative z-20">
-                        <div className="flex justify-center mb-8">
+                    <div className="w-full max-w-[22rem] md:w-96 liquid-glass-panel p-6 md:p-8 flex flex-col relative z-20">
+                        <div className="flex justify-center mb-6 md:mb-8">
                             <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-8 opacity-90 drop-shadow-lg" />
                         </div>
-                        <h2 className="text-xl font-bold text-white mb-6 text-center tracking-wide drop-shadow-md">
+                        <h2 className="text-lg md:text-xl font-bold text-white mb-6 text-center tracking-wide drop-shadow-md">
                             {isLogin ? 'Přístup do terminálu' : 'Registrace operátora'}
                         </h2>
                         
@@ -901,7 +923,7 @@
                         <input 
                             type="password" 
                             placeholder="Bezpečnostní heslo" 
-                            className="mb-8 bg-rwv-bg/60 border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-olive focus:bg-rwv-bg/80 backdrop-blur-sm transition shadow-inner" 
+                            className="mb-6 md:mb-8 bg-rwv-bg/60 border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-olive focus:bg-rwv-bg/80 backdrop-blur-sm transition shadow-inner" 
                             value={password} 
                             onChange={e => setPassword(e.target.value)} 
                         />
@@ -1058,55 +1080,62 @@
             // LOADING SCREEN RENDER
             if (!appReady) {
                 return (
-                    <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg">
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg px-4">
                         <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" className="mb-8 h-12 object-contain opacity-80" />
                         <div className="w-64 h-2 bg-rwv-panel rounded-full overflow-hidden border border-rwv-border">
                             <div className="h-full bg-rwv-lime transition-all duration-75 ease-linear" style={{ width: `${loadProgress}%` }}></div>
                         </div>
-                        <p className="mt-4 text-[10px] font-sans font-medium text-rwv-textMuted uppercase tracking-widest">Ověřuji spojení a načítám modely...</p>
+                        <p className="mt-4 text-[10px] font-sans font-medium text-rwv-textMuted uppercase tracking-widest text-center">Ověřuji spojení a načítám modely...</p>
                     </div>
                 );
             }
 
-            if (error) return <div className="flex items-center justify-center min-h-screen text-red-500 font-sans font-semibold">{error}</div>;
+            if (error) return <div className="flex items-center justify-center min-h-screen text-red-500 font-sans font-semibold px-6 text-center">{error}</div>;
 
             const spotPrice = defaultPredictions?.[selectedCommodityId]?.spot_price || 0.00;
             const currentLabel = COMMODITIES.find(c => c.id === selectedCommodityId)?.label || selectedCommodityId;
 
             return (
-                <div className="flex flex-col h-screen overflow-hidden animate-fade-in">
+                <div className="flex flex-col h-screen md:h-screen overflow-y-auto md:overflow-hidden animate-fade-in rwv-mobile-scroll-shell">
                     
                     {/* Top Global Navigation Bar */}
-                    <div className="h-16 bg-rwv-panel border-b border-rwv-border flex items-center justify-between px-6 shrink-0 z-30">
-                        <div className="flex items-center gap-4">
-                            <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-8 object-contain opacity-90" />
+                    <div className="min-h-[4rem] md:h-16 bg-rwv-panel border-b border-rwv-border flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0 px-4 md:px-6 py-3 md:py-0 shrink-0 z-30">
+                        <div className="flex items-center justify-between md:justify-start gap-4">
+                            <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-7 md:h-8 object-contain opacity-90" />
+                            {/* LOGOUT BUTTON (mobile position, next to logo) */}
+                            <button 
+                                onClick={handleLogout}
+                                className="md:hidden px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rwv-textMuted border border-rwv-border rounded hover:text-red-400 hover:border-red-900/50 hover:bg-red-900/20 transition"
+                            >
+                                Odhlásit
+                            </button>
                         </div>
                         
                         <div className="flex gap-4 items-center">
-                            <div className="flex gap-2 bg-rwv-bg p-1 rounded-lg border border-rwv-border">
+                            <div className="flex gap-1 md:gap-2 bg-rwv-bg p-1 rounded-lg border border-rwv-border overflow-x-auto w-full md:w-auto custom-scrollbar">
                                 <button 
                                     onClick={() => setViewTab('dashboard')}
-                                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'dashboard' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'dashboard' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
                                 >
                                     Výstupní Matice
                                 </button>
                                 <button 
                                     onClick={() => setViewTab('simulation')}
-                                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'simulation' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'simulation' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
                                 >
                                     Matematický Model
                                 </button>
                                 <button 
                                     onClick={() => setViewTab('health')}
-                                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'health' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'health' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
                                 >
                                     Zdraví Dat
                                 </button>
                             </div>
-                            {/* LOGOUT BUTTON */}
+                            {/* LOGOUT BUTTON (desktop position) */}
                             <button 
                                 onClick={handleLogout}
-                                className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rwv-textMuted border border-rwv-border rounded hover:text-red-400 hover:border-red-900/50 hover:bg-red-900/20 transition"
+                                className="hidden md:inline-block px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rwv-textMuted border border-rwv-border rounded hover:text-red-400 hover:border-red-900/50 hover:bg-red-900/20 transition"
                             >
                                 Odhlásit
                             </button>
@@ -1114,12 +1143,12 @@
                     </div>
 
                     {/* Main Workspace Split */}
-                    <div className="flex-1 flex overflow-hidden">
+                    <div className="flex-1 flex flex-col md:flex-row overflow-visible md:overflow-hidden">
                         
                         {/* Persistent Sidebar */}
                         {viewTab === 'dashboard' && (
-                            <div className="w-[340px] bg-rwv-panel border-r border-rwv-border flex flex-col shadow-xl z-20 shrink-0">
-                                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col gap-8">
+                            <div className="w-full md:w-[340px] bg-rwv-panel border-b md:border-b-0 md:border-r border-rwv-border flex flex-col shadow-xl z-20 shrink-0 max-h-[50vh] md:max-h-none">
+                                <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col gap-6 md:gap-8">
                                     <div>
                                         <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-3">Cílové Aktivum</h2>
                                         <div className="grid grid-cols-2 gap-2">
@@ -1155,18 +1184,18 @@
 
                         {/* Dynamic Main View */}
                         {viewTab === 'dashboard' ? (
-                            <div className="flex-1 p-8 overflow-y-auto flex flex-col relative bg-rwv-bg">
-                                <header className="flex justify-between items-end mb-6">
+                            <div className="flex-1 p-4 md:p-8 overflow-visible md:overflow-y-auto flex flex-col relative bg-rwv-bg">
+                                <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-3 md:gap-0 mb-6">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-rwv-textMuted text-sm font-medium">Trh /</span>
                                             <span className="text-rwv-lime text-sm font-bold uppercase tracking-wider">{currentLabel}</span>
                                         </div>
-                                        <h2 className="text-4xl font-bold text-white tracking-tight">{currentLabel} <span className="text-gray-500 font-light">/ USD</span></h2>
+                                        <h2 className="text-2xl md:text-4xl font-bold text-white tracking-tight">{currentLabel} <span className="text-gray-500 font-light">/ USD</span></h2>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-left md:text-right">
                                         <p onClick={() => setViewTab('debug')} className="text-xs text-rwv-textMuted uppercase tracking-widest mb-1">Spotová Cena</p>
-                                        <p className="text-4xl font-sans font-semibold text-white">${spotPrice.toFixed(2)}</p>
+                                        <p className="text-2xl md:text-4xl font-sans font-semibold text-white">${spotPrice.toFixed(2)}</p>
                                     </div>
                                 </header>
                                 <ProjectionChart 
@@ -1180,24 +1209,24 @@
                             <MathSimulationTab />
                         ) : viewTab === 'health' ? (
                             // Data Health Tab
-                            <div className="flex-1 p-10 overflow-y-auto bg-rwv-bg font-sans">
+                            <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
                                 <div className="max-w-4xl mx-auto">
-                                    <h2 className="text-3xl font-bold text-white mb-2 border-b border-rwv-border pb-4">Stav Datového Toku</h2>
+                                    <h2 className="text-xl md:text-3xl font-bold text-white mb-2 border-b border-rwv-border pb-4">Stav Datového Toku</h2>
                                     
                                     {healthData ? (
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-6 md:mt-8">
                                             {Object.entries(healthData).map(([category, metrics]) => (
-                                                <div key={category} className="bg-rwv-panel p-6 rounded-xl border border-rwv-border shadow-xl">
+                                                <div key={category} className="bg-rwv-panel p-4 md:p-6 rounded-xl border border-rwv-border shadow-xl">
                                                     <h4 className="text-xs font-bold uppercase text-rwv-textMuted mb-4 tracking-widest border-b border-rwv-border pb-2">
                                                         {TRANSLATIONS[category] || category.replace('_', ' ')}
                                                     </h4>
                                                     <ul className="space-y-3">
                                                         {Object.entries(metrics).map(([key, info]) => (
-                                                            <li key={key} className="flex justify-between items-center text-sm">
+                                                            <li key={key} className="flex justify-between items-center text-sm gap-2">
                                                                 <span className="text-gray-300" title={TRANSLATIONS[key] || key}>
                                                                     {TRANSLATIONS[key] || key.replace('_', ' ')}
                                                                 </span>
-                                                                <span className={`font-sans font-semibold text-xs px-2 py-1 rounded ${info.status.includes('OK') ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
+                                                                <span className={`font-sans font-semibold text-xs px-2 py-1 rounded shrink-0 ${info.status.includes('OK') ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
                                                                     {info.status}
                                                                 </span>
                                                             </li>
@@ -1213,14 +1242,14 @@
                             </div>
                         ) : (
                             // Debug/Dev Tab (Hidden trigger)
-                            <div className="flex-1 p-10 overflow-y-auto bg-rwv-bg font-sans">
+                            <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
                                 <div className="max-w-3xl mx-auto">
-                                    <h2 className="text-3xl font-bold text-yellow-400 mb-2 border-b border-yellow-400/20 pb-4">Výstup pro vývojáře (Debug)</h2>
+                                    <h2 className="text-xl md:text-3xl font-bold text-yellow-400 mb-2 border-b border-yellow-400/20 pb-4">Výstup pro vývojáře (Debug)</h2>
                                     <div className="mb-8 mt-6">
                                         <span className="text-rwv-textMuted uppercase tracking-widest text-xs font-semibold">Aktivní datový tok komodity</span>
-                                        <div className="text-2xl text-white mt-1 font-semibold">{currentLabel} / USD</div>
+                                        <div className="text-xl md:text-2xl text-white mt-1 font-semibold">{currentLabel} / USD</div>
                                     </div>
-                                    <div className="bg-rwv-panel p-6 rounded-xl border border-rwv-border shadow-xl">
+                                    <div className="bg-rwv-panel p-4 md:p-6 rounded-xl border border-rwv-border shadow-xl">
                                         <h3 className="text-gray-300 text-sm font-bold mb-4 uppercase tracking-wider">Surová matice 27 kroků projekce</h3>
                                         {chartData.length > 0 ? (
                                             <ul className="space-y-2 text-sm">
