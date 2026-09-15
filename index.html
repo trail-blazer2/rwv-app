@@ -202,6 +202,13 @@
             input[type=range]::-webkit-slider-thumb {
                 height: 18px; width: 18px; margin-top: -7px;
             }
+            .rwv-bg-lines {
+                width: 220% !important;
+                height: 55% !important;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+            }
         }
     </style>
 </head>
@@ -901,7 +908,7 @@
                     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-rwv-lime rounded-full blur-[150px] opacity-10"></div>
                         
-                        <svg className="absolute w-[120%] h-[120%] opacity-20" viewBox="0 0 1000 500" preserveAspectRatio="none">
+                        <svg className="absolute w-[120%] h-[120%] opacity-20 rwv-bg-lines" viewBox="0 0 1000 500" preserveAspectRatio="none">
                             <path className="floating-line-1" d="M-100,400 Q150,250 350,350 T650,200 T950,300 T1100,100" fill="none" stroke="#C6F34F" strokeWidth="2" style={{filter: 'blur(3px)'}}/>
                             <path className="floating-line-2" d="M-100,450 Q200,350 400,200 T700,350 T900,150 T1100,250" fill="none" stroke="#758749" strokeWidth="3" style={{filter: 'blur(5px)'}}/>
                             <path className="floating-line-3" d="M-100,250 Q100,150 300,200 T600,100 T800,250 T1100,50" fill="none" stroke="#C6F34F" strokeWidth="1.5" style={{filter: 'blur(2px)'}}/>
