@@ -503,66 +503,91 @@
                 else setPhase(0);
             };
 
+            // Node layout: 9 columns, following the real order of computation in rwv_engine.py
             const nodes = {
-                wb: { x: 10, y: 30, label: "Světová Banka", phase: 1 },
-                fred: { x: 10, y: 100, label: "FRED Makro", phase: 1 },
-                meteo: { x: 10, y: 170, label: "Open-Meteo", phase: 1 },
-                eia: { x: 10, y: 240, label: "EIA Fyzická Data", phase: 1 },
-                yf: { x: 10, y: 310, label: "yfinance (Rozdíly)", phase: 1 },
-                fut: { x: 10, y: 380, label: "Expirace Futures", phase: 1 },
+                // Column 1 — raw data sources (Phase 1)
+                wb: { x: 10, y: 10, label: "Světová Banka", phase: 1 },
+                fred: { x: 10, y: 70, label: "FRED Makro", phase: 1 },
+                meteo: { x: 10, y: 130, label: "Open-Meteo", phase: 1 },
+                eia: { x: 10, y: 190, label: "EIA Fyzická Data", phase: 1 },
+                manual: { x: 10, y: 250, label: "USGS / ICCO Data", phase: 1 },
+                yf: { x: 10, y: 310, label: "yfinance (Historie)", phase: 1 },
+                fut: { x: 10, y: 370, label: "Expirace Futures", phase: 1 },
 
-                l_it: { x: 170, y: 30, label: "Základ. Ekon. L(it)", phase: 2 },
-                f_it: { x: 170, y: 100, label: "Volatil. Ekon. F(it)", phase: 2 },
-                v_t: { x: 170, y: 170, label: "Fund. Riziko V(t)", phase: 2 },
-                f_r: { x: 170, y: 240, label: "Fin. Stres F(r)", phase: 2 },
-                lam: { x: 170, y: 310, label: "Intenzita Def. Λ(it)", phase: 2 },
-                buf: { x: 170, y: 380, label: "Adapt. Polštář B(it)", phase: 2 },
+                // Column 2 — decomposed components (Phase 2)
+                l_it: { x: 190, y: 10, label: "Základ. Ekon. L(it)", phase: 2 },
+                f_it: { x: 190, y: 70, label: "Volatil. Ekon. F(it)", phase: 2 },
+                v_t: { x: 190, y: 130, label: "Fund. Riziko V(t)", phase: 2 },
+                f_r: { x: 190, y: 190, label: "Fin. Stres F(r)", phase: 2 },
+                lam: { x: 190, y: 250, label: "Intenzita Def. Λ(it)", phase: 2 },
+                buf: { x: 190, y: 310, label: "Adapt. Polštář B(it)", phase: 2 },
+                corr: { x: 190, y: 370, label: "Korelační Matice (Šok)", phase: 2 },
 
-                A: { x: 330, y: 65, label: "Aktivita (A)", phase: 3 },
-                R: { x: 330, y: 205, label: "Riziko (R)", phase: 3 },
-                D: { x: 330, y: 345, label: "Deficit (D)", phase: 3 },
+                // Column 3 — main indices (Phase 3)
+                A: { x: 370, y: 90, label: "Aktivita (A)", phase: 3 },
+                R: { x: 370, y: 210, label: "Riziko (R)", phase: 3 },
+                D: { x: 370, y: 330, label: "Deficit (D)", phase: 3 },
 
-                madr: { x: 490, y: 65, label: "MADR (a, d, r)", phase: 4 },
-                regime: { x: 490, y: 160, label: "Markov Režim z(t)", phase: 4 },
-                shock: { x: 490, y: 255, label: "Index Šoku Q(t)", phase: 4 },
-                season: { x: 490, y: 350, label: "Sezónnost S(t)", phase: 4 },
+                // Column 4 — regime & sub-indices (Phase 4)
+                madr: { x: 530, y: 40, label: "MADR (a, d, r)", phase: 4 },
+                regime: { x: 530, y: 150, label: "Markov Režim z(t)", phase: 4 },
+                shock: { x: 530, y: 260, label: "Index Šoku Q(t)", phase: 4 },
+                season: { x: 530, y: 370, label: "Sezónnost S(t)", phase: 4 },
 
-                M_target: { x: 650, y: 65, label: "Základní Cíl M(it)", phase: 5 },
-                y_carry: { x: 650, y: 255, label: "Náklad Držby c(it)", phase: 5 },
+                // Column 5 — equilibrium target, carry cost, curve fit (Phase 5)
+                M_target: { x: 690, y: 90, label: "Základní Cíl M(it)", phase: 5 },
+                y_carry: { x: 690, y: 210, label: "Náklad Držby c(it)", phase: 5 },
+                curve_fit: { x: 690, y: 330, label: "Optimalizace f(mkt)", phase: 5 },
 
-                dm_base: { x: 810, y: 65, label: "Základní SDE dm(t)", phase: 6 },
-                dx_mkt: { x: 810, y: 160, label: "Tržní SDE dx(t)", phase: 6 },
+                // Column 6 — Monte Carlo SDE, run 27 times (Phase 6)
+                dm_base: { x: 850, y: 130, label: "SDE dm(t) ×27", phase: 6 },
+                dx_mkt: { x: 850, y: 270, label: "SDE dx(t) ×27", phase: 6 },
 
-                kalman: { x: 970, y: 110, label: "Kalman Filtr P(str)", phase: 7 },
-                f_mkt: { x: 970, y: 230, label: "Tržní Křivka f(mkt)", phase: 7 },
-                rp: { x: 970, y: 310, label: "Riziková Přirážka RP", phase: 7 },
+                // Column 7 — Kalman correction + dual futures anchors (Phase 7)
+                kalman: { x: 1010, y: 130, label: "Kalman Filtr P(str)", phase: 7 },
+                f_anchors: { x: 1010, y: 270, label: "Kotvy E⁻ / E⁺", phase: 7 },
 
-                alpha: { x: 1130, y: 170, label: "Strukt. Váha (α)", phase: 8 },
-                omega: { x: 1130, y: 270, label: "Časová Interpol. (ω)", phase: 8 },
+                // Column 8 — horizon-dependent weighting (Phase 8)
+                alpha: { x: 1170, y: 90, label: "Strukt. Váha α(τ)", phase: 8 },
+                rp: { x: 1170, y: 210, label: "Rizik. Přirážka RP(τ)", phase: 8 },
+                omega: { x: 1170, y: 330, label: "Interpolace ω", phase: 8 },
 
-                curve: { x: 1290, y: 220, label: "Křivka 27 Kroků", phase: 9 }
+                // Column 9 — final output (Phase 9)
+                curve: { x: 1330, y: 200, label: "Finální Křivka (27 bodů)", phase: 9 }
             };
 
             const connections = [
                 { from: 'wb', to: 'l_it', reqPhase: 2 }, { from: 'wb', to: 'v_t', reqPhase: 2 },
                 { from: 'fred', to: 'f_it', reqPhase: 2 }, { from: 'fred', to: 'f_r', reqPhase: 2 }, { from: 'fred', to: 'lam', reqPhase: 2 },
-                { from: 'meteo', to: 'lam', reqPhase: 2 }, { from: 'eia', to: 'lam', reqPhase: 2 }, { from: 'eia', to: 'buf', reqPhase: 2 },
-                { from: 'yf', to: 'lam', reqPhase: 2 },
+                { from: 'meteo', to: 'lam', reqPhase: 2 },
+                { from: 'eia', to: 'lam', reqPhase: 2 }, { from: 'eia', to: 'buf', reqPhase: 2 },
+                { from: 'manual', to: 'lam', reqPhase: 2 }, { from: 'manual', to: 'buf', reqPhase: 2 },
+                { from: 'yf', to: 'lam', reqPhase: 2 }, { from: 'yf', to: 'corr', reqPhase: 2 },
+
                 { from: 'l_it', to: 'A', reqPhase: 3 }, { from: 'f_it', to: 'A', reqPhase: 3 },
                 { from: 'v_t', to: 'R', reqPhase: 3 }, { from: 'f_r', to: 'R', reqPhase: 3 },
                 { from: 'lam', to: 'D', reqPhase: 3 }, { from: 'buf', to: 'D', reqPhase: 3 },
+
                 { from: 'A', to: 'madr', reqPhase: 4 }, { from: 'R', to: 'madr', reqPhase: 4 }, { from: 'D', to: 'madr', reqPhase: 4 },
                 { from: 'A', to: 'regime', reqPhase: 4 }, { from: 'R', to: 'regime', reqPhase: 4 }, { from: 'D', to: 'regime', reqPhase: 4 },
-                { from: 'D', to: 'shock', reqPhase: 4 }, { from: 'D', to: 'season', reqPhase: 4 }, 
+                { from: 'D', to: 'shock', reqPhase: 4 }, { from: 'corr', to: 'shock', reqPhase: 4 },
+                { from: 'D', to: 'season', reqPhase: 4 },
+
                 { from: 'madr', to: 'M_target', reqPhase: 5 }, { from: 'regime', to: 'M_target', reqPhase: 5 },
                 { from: 'D', to: 'y_carry', reqPhase: 5 }, { from: 'regime', to: 'y_carry', reqPhase: 5 },
+                { from: 'fut', to: 'curve_fit', reqPhase: 5 }, { from: 'y_carry', to: 'curve_fit', reqPhase: 5 },
+
                 { from: 'M_target', to: 'dm_base', reqPhase: 6 },
-                { from: 'madr', to: 'dx_mkt', reqPhase: 6 }, { from: 'regime', to: 'dx_mkt', reqPhase: 6 }, 
+                { from: 'madr', to: 'dx_mkt', reqPhase: 6 }, { from: 'regime', to: 'dx_mkt', reqPhase: 6 },
                 { from: 'shock', to: 'dx_mkt', reqPhase: 6 }, { from: 'season', to: 'dx_mkt', reqPhase: 6 },
+
                 { from: 'dm_base', to: 'kalman', reqPhase: 7 }, { from: 'dx_mkt', to: 'kalman', reqPhase: 7 },
-                { from: 'fut', to: 'f_mkt', reqPhase: 7 }, { from: 'y_carry', to: 'f_mkt', reqPhase: 7 },
-                { from: 'kalman', to: 'alpha', reqPhase: 8 }, { from: 'f_mkt', to: 'alpha', reqPhase: 8 }, { from: 'rp', to: 'alpha', reqPhase: 8 },
-                { from: 'alpha', to: 'omega', reqPhase: 8 },
+                { from: 'curve_fit', to: 'f_anchors', reqPhase: 7 },
+
+                { from: 'kalman', to: 'alpha', reqPhase: 8 }, { from: 'f_anchors', to: 'alpha', reqPhase: 8 },
+                { from: 'kalman', to: 'rp', reqPhase: 8 }, { from: 'f_anchors', to: 'rp', reqPhase: 8 },
+                { from: 'alpha', to: 'omega', reqPhase: 8 }, { from: 'rp', to: 'omega', reqPhase: 8 },
+
                 { from: 'omega', to: 'curve', reqPhase: 9 }
             ];
 
@@ -578,15 +603,15 @@
 
             const panelData = [
                 { title: "UKÁZKA VÝPOČTU", desc: "Zde se ukáže průběh výpočtu pomocí celého modelu v pomalé verzi pro ukázku.", metrics: [] },
-                { title: "FÁZE 1: GLOBÁLNÍ SBĚR DAT", desc: "Získávání makro dat, fyzických fundamentů, prostorových rozdílů a expirací futures.", metrics: [{label: "Globální HDP", val: "+2.1%"}, {label: "Jádrová Inflace", val: "3.4%"}, {label: "Rozdíl bz-wti", val: "1.4"}, {label: "Exp. Futures", val: "N=4"}] },
-                { title: "FÁZE 2: ROZDĚLENÍ DÍLČÍCH KOMPONENT", desc: "Rozdělení indikátorů na volatilní a základní meze. Vyhodnocení intenzity deficitu.", metrics: [{label: "Volatilní F(it)", val: "0.62"}, {label: "Základní L(it)", val: "0.55"}, {label: "Intenzita Def. (Λ)", val: "1.44"}, {label: "Adapt. Polštář", val: "0.72"}] },
+                { title: "FÁZE 1: GLOBÁLNÍ SBĚR DAT", desc: "Získávání makro dat (Světová banka, FRED), fyzických fundamentů (EIA pro energie, USGS/ICCO pro kovy a kakao), počasí a historických cen (yfinance) pro pozdější výpočet korelací.", metrics: [{label: "Globální HDP", val: "+2.1%"}, {label: "Jádrová Inflace", val: "3.4%"}, {label: "USGS/ICCO Data", val: "6 komodit"}, {label: "Exp. Futures", val: "N=4"}] },
+                { title: "FÁZE 2: ROZDĚLENÍ DÍLČÍCH KOMPONENT", desc: "Rozdělení indikátorů na volatilní a základní meze. Výpočet intenzity deficitu a REÁLNÉ korelační matice mezi komoditami (z historických výnosů) pro šíření šoků.", metrics: [{label: "Volatilní F(it)", val: "0.62"}, {label: "Základní L(it)", val: "0.55"}, {label: "Intenzita Def. (Λ)", val: "1.44"}, {label: "Korelace (příklad)", val: "0.47"}] },
                 { title: "FÁZE 3: HLAVNÍ MAKRO INDEXY", desc: "Syntéza normalizovaných matic A(it), D(it) a R(it) přes hyperbolické tangenty.", metrics: [{label: "Aktivita (A)", val: "0.58"}, {label: "Deficit (D)", val: "0.74"}, {label: "Systém. Riziko", val: "0.39"}] },
-                { title: "FÁZE 4: MADR & MARKOVOVY REŽIMY", desc: "Centrování parametrů (a, d, r). Výpočet pravděpodobností přechodu pro určení aktivního stavu.", metrics: [{label: "Vystředěno (a,d,r)", val: "[.16, .48, -.22]"}, {label: "Pravděp. (π)", val: "[.1, .2, .6, .1]"}, {label: "Aktivní Režim", val: "Stav 3"}] },
-                { title: "FÁZE 5: CÍLE ROVNOVÁHY A DRŽBY", desc: "Výpočet dlouhodobého cíle rovnovážné ceny M(it). Sestavení výnosu y(it) a nákladů držby c(carry).", metrics: [{label: "Základní Cíl M(it)", val: "4.12"}, {label: "Výnos y(it)", val: "3.2%"}, {label: "Náklad c(carry)", val: "0.08"}] },
-                { title: "FÁZE 6: SDE MONTE CARLO", desc: "Injekce proměnných do stochastických diferenciálních rovnic. Výpočet driftu Zákadní (dm) a Tržní (dx) vrstvy.", metrics: [{label: "Zákl. Drift (dm)", val: "+0.012"}, {label: "Trž. Drift (dx)", val: "-0.004"}, {label: "Cesty (N)", val: "10 000"}] },
-                { title: "FÁZE 7: KALMAN A TRŽNÍ KŘIVKA", desc: "Aplikace Kalmanova filtru pro získání strukturální ceny P(str). Optimalizace tržní křivky f(mkt).", metrics: [{label: "Stav X(plus)", val: "[4.3, 0.1]"}, {label: "Strukt. P(str)", val: "83.15"}, {label: "Křivka f(mkt)", val: "81.90"}] },
-                { title: "FÁZE 8: VÁŽENÍ A INTERPOLACE", desc: "Vážení P(str) vůči f(mkt) pomocí váhy nejistoty (α). Interpolace přesných dat expirace pomocí (ω).", metrics: [{label: "Nejistota (α)", val: "0.68"}, {label: "Rizik. Přirážka", val: "-0.40"}, {label: "Interpolace (ω)", val: "0.85"}] },
-                { title: "FÁZE 9: KRYSTALIZACE VÝSTUPU", desc: "Agregace pravděpodobnostně vážených cest do finální 27krokové forwardové křivky.", metrics: [{label: "T_1 (15 dní)", val: "$82.10"}, {label: "T_2 (30 dní)", val: "$82.45"}, {label: "T_3 (45 dní)", val: "$82.60"}, {label: "T_27 (3 roky)", val: "$91.20"}] }
+                { title: "FÁZE 4: MADR & MARKOVOVY REŽIMY", desc: "Centrování parametrů (a, d, r). Index šoku nyní čerpá ze skutečné korelační matice komodit místo pevných odhadů.", metrics: [{label: "Vystředěno (a,d,r)", val: "[.16, .48, -.22]"}, {label: "Pravděp. (π)", val: "[.1, .2, .6, .1]"}, {label: "Šíření šoku (G_zt)", val: "0.09"}] },
+                { title: "FÁZE 5: CÍLE ROVNOVÁHY, DRŽBA A TRŽNÍ KŘIVKA", desc: "Výpočet dlouhodobého cíle M(it) a nákladů držby c(carry). Následně optimalizace tržní křivky f(mkt) metodou nejmenších čtverců vůči dvěma aktivním futures kontraktům.", metrics: [{label: "Základní Cíl M(it)", val: "4.12"}, {label: "Náklad c(carry)", val: "0.08"}, {label: "Fit křivky f(mkt)", val: "konvergováno"}] },
+                { title: "FÁZE 6: SDE MONTE CARLO (27 KROKŮ)", desc: "Simulace probíhá 27krát po 5denních krocích. Každý krok používá horizontově-závislou sezónnost S(h) a injektuje drift do základní (dm) a tržní (dx) vrstvy.", metrics: [{label: "Zákl. Drift (dm)", val: "+0.012"}, {label: "Trž. Drift (dx)", val: "-0.004"}, {label: "Cesty × Kroky", val: "100 × 27"}] },
+                { title: "FÁZE 7: KALMAN A DVĚ KOTVY FUTURES", desc: "Kalmanovo filtrování opravuje strukturální cenu P(str) v každém z 27 kroků. Tržní křivka f(mkt) se vyhodnocuje na obou sousedních expiračních kotvách E⁻ a E⁺.", metrics: [{label: "Strukt. P(str)", val: "83.15"}, {label: "Kotva E⁻", val: "81.40"}, {label: "Kotva E⁺", val: "82.90"}] },
+                { title: "FÁZE 8: VÁHA A RIZIKOVÁ PŘIRÁŽKA (PO HORIZONTECH)", desc: "Strukturální váha α roste s časovým horizontem (čím dále, tím méně důvěry v tržní data). Riziková přirážka RP a interpolační váha ω se počítají zvlášť pro obě kotvy.", metrics: [{label: "α (krátký horizont)", val: "0.42"}, {label: "α (dlouhý horizont)", val: "0.71"}, {label: "Interpolace (ω)", val: "0.85"}] },
+                { title: "FÁZE 9: KOMBINACE KOTEV A FINÁLNÍ VÝSTUP", desc: "Obě kotvy (E⁻, E⁺) se zkombinují do jedné log-ceny podle váhy ω, teprve poté se provede exponenciace — čímž vznikne finální 27bodová forwardová křivka.", metrics: [{label: "T_1 (5 dní)", val: "$82.10"}, {label: "T_2 (10 dní)", val: "$82.45"}, {label: "T_3 (15 dní)", val: "$82.60"}, {label: "T_27 (135 dní)", val: "$91.20"}] }
             ];
 
             return (
@@ -605,8 +630,8 @@
                             </button>
                         </div>
                         <div className="flex-1 w-full relative overflow-auto custom-scrollbar">
-                            <div className="min-w-[1450px] min-h-[440px] w-full h-full relative">
-                                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1450 440" preserveAspectRatio="xMidYMid meet">
+                            <div className="min-w-[1600px] min-h-[460px] w-full h-full relative">
+                                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1600 460" preserveAspectRatio="xMidYMid meet">
                                     {connections.map((c, i) => renderPath(c, i))}
                                     {Object.entries(nodes).map(([key, n]) => {
                                         const isActive = phase >= n.phase;
