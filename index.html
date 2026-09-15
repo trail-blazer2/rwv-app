@@ -58,6 +58,10 @@
         .bg-rwv-bg {
             background-color: rgb(19 19 24) !important;
         }
+        .dnesnistav {
+            --tw-text-opacity: 1;
+            color: rgb(117 135 73 / var(--tw-text-opacity, 1));
+        }
         
         /* Range Slider Styling */
         input[type=range] { -webkit-appearance: none; background: transparent; }
@@ -1211,7 +1215,7 @@
                                             <button
                                                 onClick={handleResetToToday}
                                                 disabled={!defaultPredictions?.[selectedCommodityId]?.indices}
-                                                className="text-[10px] font-bold uppercase tracking-wider text-rwv-lime border border-rwv-lime/40 rounded px-2 py-1 hover:bg-rwv-lime/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                                className="text-[10px] font-bold dnesnistav uppercase tracking-wider text-rwv-lime border border-rwv-lime/40 rounded px-2 py-1 hover:bg-rwv-lime/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
                                             >
                                                 Dnešní stav
                                             </button>
