@@ -169,6 +169,12 @@
                 const meta = args.meta;
                 if (!chart.chartArea) return;
 
+                const topY = chart.chartArea.top;
+                const bottomY = chart.chartArea.bottom;
+                
+                // Prevent gradient errors during initial zero-height render frames
+                if (bottomY <= topY) return; 
+
                 const isHovered = chart.tooltip?._active?.length > 0;
                 
                 // Initialize easing state
@@ -185,11 +191,8 @@
                     chart._rwv_hover_opacity = targetOpacity;
                 }
 
-                const topY = chart.chartArea.top;
-                const bottomY = chart.chartArea.bottom;
                 const o = chart._rwv_hover_opacity; 
 
-                // CRITICAL FIX: Math.round() prevents malformed canvas color strings, keeping the fade active at all times
                 const blend = (c1, c2, factor) => [
                     Math.round(c1[0] + (c2[0] - c1[0]) * factor),
                     Math.round(c1[1] + (c2[1] - c1[1]) * factor),
@@ -201,11 +204,19 @@
                 const currentBorder = blend([198, 243, 79], [58, 71, 34], o);
 
                 const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
-                grad.addColorStop(0, `rgba(${currentFill[0]}, ${currentFill[1]}, ${currentFill[2]}, ${currentFill[3]})`);
+                // .toFixed(3) ensures canvas never rejects the string during alpha easing
+                grad.addColorStop(0, `rgba(${currentFill[0]}, ${currentFill[1]}, ${currentFill[2]}, ${currentFill[3].toFixed(3)})`);
                 grad.addColorStop(1, `rgba(${currentFill[0]}, ${currentFill[1]}, ${currentFill[2]}, 0)`);
                 
-                meta.dataset.options.borderColor = `rgb(${currentBorder[0]}, ${currentBorder[1]}, ${currentBorder[2]})`;
+                const borderColorStr = `rgb(${currentBorder[0]}, ${currentBorder[1]}, ${currentBorder[2]})`;
+                
+                // CRITICAL FIX: Update both the meta options AND the underlying dataset configuration 
+                // to prevent Chart.js from falling back to the solid color string during data-change animations.
+                meta.dataset.options.borderColor = borderColorStr;
                 meta.dataset.options.backgroundColor = grad;
+                
+                chart.data.datasets[0].borderColor = borderColorStr;
+                chart.data.datasets[0].backgroundColor = grad;
             },
             afterDatasetsDraw: (chart) => {
                 const isHovered = chart.tooltip?._active?.length > 0;
@@ -247,14 +258,15 @@
                 
                 if (x === null || y === null) return;
 
-                // 1. Massive Radial Glow (Applied via CSS to bypass canvas clipping and fill the entire 500px UI)
+                // 1. Massive Radial Glow (Applied via CSS to bypass canvas clipping and fill the UI)
                 if (container) {
                     const canvasRect = chart.canvas.getBoundingClientRect();
                     const containerRect = container.getBoundingClientRect();
                     const relX = x + (canvasRect.left - containerRect.left);
                     const relY = y + (canvasRect.top - containerRect.top);
                     
-                    container.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 800px)`;
+                    // The radius is currently set to 500px here at the end of the string
+                    container.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 500px)`;
                 }
 
                 const topY = chart.scales.y.top;
