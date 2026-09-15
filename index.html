@@ -132,7 +132,6 @@
             net_migration: "Čistá migrace", dxy: "Dolarový index (DXY)"
         };
 
-        // Dummy data for immediate visual load state
         const INITIAL_DUMMY_CURVE = Array.from({length: 27}, (_, i) => ({
             day: (i + 1) * 15,
             price: 80 + Math.sin(i / 4) * 2 + (i * 0.2)
@@ -140,7 +139,6 @@
 
         // --- PURE CANVAS CHART PLUGINS ---
         
-        // 1. Vertical Lines matching Data Points, strictly inside the filled graph
         const verticalUnderfillPlugin = {
             id: 'verticalUnderfill',
             beforeDatasetDraw: (chart, args) => {
@@ -179,7 +177,6 @@
             }
         };
 
-        // 2. Continuous Easing Hover, Darkening Toggle, Massive Radial Cone
         const advancedHoverPlugin = {
             id: 'advancedHover',
             beforeDatasetDraw: (chart, args) => {
@@ -234,7 +231,6 @@
                 const isHovered = chart.tooltip?._active?.length > 0;
                 const container = chart.canvas.closest('.h-\\[500px\\]') || chart.canvas.parentElement.parentElement;
                 
-                // Create a dedicated overlay div for the glow so it doesn't fight the premium-panel CSS border
                 let glowLayer = null;
                 if (container) {
                     glowLayer = container.querySelector('.rwv-hover-glow');
@@ -623,8 +619,95 @@
             );
         }
 
+        // --- AUTHENTICATION SCREEN ---
+        function AuthScreen({ onAuth }) {
+            const [isLogin, setIsLogin] = useState(true);
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState(null);
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async () => {
+                setError(null);
+                setLoading(true);
+                const endpoint = isLogin ? '/api/v1/login' : '/api/v1/signup';
+                
+                try {
+                    const res = await fetch(`${API_BASE}${endpoint}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                    });
+                    
+                    const data = await res.json();
+                    
+                    if (!res.ok) {
+                        throw new Error(data.detail || 'Neznámá chyba autentizace');
+                    }
+                    
+                    if (isLogin) {
+                        onAuth(data.access_token);
+                    } else {
+                        // Switch to login on successful signup
+                        setIsLogin(true);
+                        setError("Účet vytvořen. Nyní se můžete přihlásit.");
+                        setPassword('');
+                    }
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg font-sans relative overflow-hidden animate-fade-in">
+                    <div className="w-96 premium-panel p-8 shadow-2xl flex flex-col relative z-20">
+                        <div className="flex justify-center mb-8">
+                            <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-8 opacity-80" />
+                        </div>
+                        <h2 className="text-xl font-bold text-white mb-6 text-center tracking-wide">
+                            {isLogin ? 'Přístup do terminálu' : 'Registrace operátora'}
+                        </h2>
+                        
+                        {error && <div className={`text-xs mb-4 text-center font-bold px-3 py-2 rounded border ${error.includes('vytvořen') ? 'bg-green-900/30 text-green-400 border-green-500/50' : 'bg-red-900/30 text-red-400 border-red-500/50'}`}>{error}</div>}
+                        
+                        <input 
+                            type="email" 
+                            placeholder="E-mailová adresa" 
+                            className="mb-4 bg-rwv-bg border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-lime transition" 
+                            value={email} 
+                            onChange={e => setEmail(e.target.value)} 
+                        />
+                        <input 
+                            type="password" 
+                            placeholder="Bezpečnostní heslo" 
+                            className="mb-6 bg-rwv-bg border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-lime transition" 
+                            value={password} 
+                            onChange={e => setPassword(e.target.value)} 
+                        />
+                        
+                        <button 
+                            onClick={handleSubmit} 
+                            disabled={loading}
+                            className={`w-full font-bold py-2.5 rounded-lg uppercase tracking-wider text-xs transition shadow-[0_0_15px_rgba(198,243,79,0.2)] ${loading ? 'bg-rwv-border text-gray-500 cursor-not-allowed' : 'bg-rwv-lime text-rwv-bg hover:bg-opacity-90'}`}
+                        >
+                            {loading ? 'Zpracovávám...' : (isLogin ? 'Autorizovat' : 'Zaregistrovat')}
+                        </button>
+                        
+                        <p className="text-rwv-textMuted text-xs text-center mt-6 cursor-pointer hover:text-white transition" onClick={() => {setIsLogin(!isLogin); setError(null);}}>
+                            {isLogin ? 'Požádat o přístup (Registrace)' : 'Zpět na přihlášení'}
+                        </p>
+                    </div>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
+                </div>
+            );
+        }
+
         // --- MAIN APP COMPONENT ---
         function App() {
+            const [token, setToken] = useState(localStorage.getItem('rwv_token'));
+            
             const [appReady, setAppReady] = useState(false);
             const [loadProgress, setLoadProgress] = useState(0);
 
@@ -632,17 +715,34 @@
             const [selectedCommodityId, setSelectedCommodityId] = useState("Gold");
             const [defaultPredictions, setDefaultPredictions] = useState(null);
             
-            // Start chartData with the dummy curve immediately instead of an empty array
             const [chartData, setChartData] = useState(INITIAL_DUMMY_CURVE);
             const [healthData, setHealthData] = useState(null);
             
-            // Standardizing the base indices to exactly 0.50 layout
             const [sliders, setSliders] = useState({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
             const [isSimulating, setIsSimulating] = useState(false);
             const [error, setError] = useState(null);
 
+            const handleLogout = () => {
+                localStorage.removeItem('rwv_token');
+                setToken(null);
+            };
+
+            const getAuthHeaders = () => ({
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            });
+
+            const handleApiError = (res) => {
+                if (res.status === 401) {
+                    handleLogout();
+                    throw new Error("Relace vypršela. Přihlaste se znovu.");
+                }
+                return res.json();
+            };
+
             // Fast Loading Animation
             useEffect(() => {
+                if (!token) return; // Don't run app load animation if on auth screen
                 const interval = setInterval(() => {
                     setLoadProgress(p => {
                         if (p >= 100) {
@@ -654,13 +754,15 @@
                     });
                 }, 40); 
                 return () => clearInterval(interval);
-            }, []);
+            }, [token]);
 
-            // Background Data Fetching
+            // Background Data Fetching (Requires Auth)
             useEffect(() => {
+                if (!token) return;
+                
                 Promise.all([
-                    fetch(`${API_BASE}/api/v1/predict`).then(res => res.json()),
-                    fetch(`${API_BASE}/api/v1/data-status`).then(res => res.json())
+                    fetch(`${API_BASE}/api/v1/predict`, { headers: getAuthHeaders() }).then(handleApiError),
+                    fetch(`${API_BASE}/api/v1/data-status`, { headers: getAuthHeaders() }).then(handleApiError)
                 ])
                 .then(([predictRes, healthRes]) => {
                     if (predictRes.status === "success" && predictRes.data) {
@@ -671,27 +773,28 @@
                     }
                 })
                 .catch(err => {
-                    setError("Chyba připojení k RWV API.");
+                    if(err.message !== "Relace vypršela. Přihlaste se znovu.") {
+                        setError("Chyba připojení k RWV API.");
+                    }
                 });
-            }, []);
+            }, [token]);
 
             // Set Chart when Commodity Changes
             useEffect(() => {
                 if (defaultPredictions && defaultPredictions[selectedCommodityId]) {
                     const data = defaultPredictions[selectedCommodityId];
-                    // Removed the setSliders override here so the controls stay fixed
                     setChartData(data.projection_curve);
                 }
             }, [selectedCommodityId, defaultPredictions]);
 
             // Debounced Custom Slider Simulation
             useEffect(() => {
-                if (!defaultPredictions) return;
+                if (!defaultPredictions || !token) return;
                 const timer = setTimeout(() => {
                     setIsSimulating(true);
                     fetch(`${API_BASE}/api/v1/simulate-custom`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: getAuthHeaders(),
                         body: JSON.stringify({
                             commodity: selectedCommodityId,
                             A_it: parseFloat(sliders.A_it),
@@ -699,7 +802,7 @@
                             R_it: parseFloat(sliders.R_it)
                         })
                     })
-                    .then(res => res.json())
+                    .then(handleApiError)
                     .then(data => {
                         if(data.status === "success") { setChartData(data.projection_curve); }
                         setIsSimulating(false);
@@ -711,11 +814,19 @@
                 }, 400); 
 
                 return () => clearTimeout(timer);
-            }, [sliders, selectedCommodityId]);
+            }, [sliders, selectedCommodityId, token]);
 
             const handleSliderChange = (e, key) => {
                 setSliders(prev => ({ ...prev, [key]: parseFloat(e.target.value) }));
             };
+
+            // RENDER AUTH SCREEN
+            if (!token) {
+                return <AuthScreen onAuth={(t) => {
+                    localStorage.setItem('rwv_token', t);
+                    setToken(t);
+                }} />;
+            }
 
             // LOADING SCREEN RENDER
             if (!appReady) {
@@ -725,7 +836,7 @@
                         <div className="w-64 h-2 bg-rwv-panel rounded-full overflow-hidden border border-rwv-border">
                             <div className="h-full bg-rwv-lime transition-all duration-75 ease-linear" style={{ width: `${loadProgress}%` }}></div>
                         </div>
-                        <p className="mt-4 text-[10px] font-sans font-medium text-rwv-textMuted uppercase tracking-widest">Inicializace...</p>
+                        <p className="mt-4 text-[10px] font-sans font-medium text-rwv-textMuted uppercase tracking-widest">Ověřuji spojení a načítám modely...</p>
                     </div>
                 );
             }
@@ -744,24 +855,33 @@
                             <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-8 object-contain opacity-90" />
                         </div>
                         
-                        <div className="flex gap-2 bg-rwv-bg p-1 rounded-lg border border-rwv-border">
+                        <div className="flex gap-4 items-center">
+                            <div className="flex gap-2 bg-rwv-bg p-1 rounded-lg border border-rwv-border">
+                                <button 
+                                    onClick={() => setViewTab('dashboard')}
+                                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'dashboard' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Výstupní Matice
+                                </button>
+                                <button 
+                                    onClick={() => setViewTab('simulation')}
+                                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'simulation' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Matematický Model
+                                </button>
+                                <button 
+                                    onClick={() => setViewTab('health')}
+                                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'health' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Zdraví Dat
+                                </button>
+                            </div>
+                            {/* LOGOUT BUTTON */}
                             <button 
-                                onClick={() => setViewTab('dashboard')}
-                                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'dashboard' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                onClick={handleLogout}
+                                className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rwv-textMuted border border-rwv-border rounded hover:text-red-400 hover:border-red-900/50 hover:bg-red-900/20 transition"
                             >
-                                Výstupní Matice
-                            </button>
-                            <button 
-                                onClick={() => setViewTab('simulation')}
-                                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'simulation' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
-                            >
-                                Matematický Model
-                            </button>
-                            <button 
-                                onClick={() => setViewTab('health')}
-                                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'health' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
-                            >
-                                Zdraví Dat
+                                Odhlásit
                             </button>
                         </div>
                     </div>
