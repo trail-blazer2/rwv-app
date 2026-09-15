@@ -234,9 +234,20 @@
                 const isHovered = chart.tooltip?._active?.length > 0;
                 const container = chart.canvas.closest('.h-\\[500px\\]') || chart.canvas.parentElement.parentElement;
                 
+                // Create a dedicated overlay div for the glow so it doesn't fight the premium-panel CSS border
+                let glowLayer = null;
+                if (container) {
+                    glowLayer = container.querySelector('.rwv-hover-glow');
+                    if (!glowLayer) {
+                        glowLayer = document.createElement('div');
+                        glowLayer.className = 'rwv-hover-glow absolute inset-0 pointer-events-none z-[5] rounded-2xl';
+                        container.appendChild(glowLayer);
+                    }
+                }
+                
                 if (chart._rwv_hover_opacity <= 0.01 && !isHovered) {
                     chart._rwv_crosshair = null;
-                    if (container) container.style.backgroundImage = ''; 
+                    if (glowLayer) glowLayer.style.backgroundImage = ''; 
                     return;
                 }
                 
@@ -266,13 +277,13 @@
                 
                 if (x === null || y === null) return;
 
-                if (container) {
+                if (glowLayer) {
                     const canvasRect = chart.canvas.getBoundingClientRect();
                     const containerRect = container.getBoundingClientRect();
                     const relX = x + (canvasRect.left - containerRect.left);
                     const relY = y + (canvasRect.top - containerRect.top);
                     
-                    container.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 280px)`;
+                    glowLayer.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 280px)`;
                 }
 
                 const topY = chart.scales.y.top;
