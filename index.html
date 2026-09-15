@@ -147,6 +147,12 @@
         .font-bold {
             font-weight: 500;
         }
+
+        .trajektorie {
+            font-weight: 200!important;
+            font-size: 0.9rem!important;
+        }
+        
         .text-xs {
             font-size: 0.78rem;
             line-height: 1rem;
@@ -509,7 +515,7 @@
                     <div className="absolute top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-4 z-20">
-                        <h3 className="text-base md:text-lg font-bold text-white tracking-wide">Trajektorie Monte Carlo</h3>
+                        <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie">Cenová Trajektorie</h3>
                         
                         <div className="h-6 flex items-center">
                             {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
