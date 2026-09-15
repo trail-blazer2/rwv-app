@@ -80,6 +80,11 @@
             stroke-width: 1.5;
             transition: stroke 0.3s ease;
         }
+
+        .blur-\[150px\] {
+            background-color: rgb(200 206 185);
+        }
+
         
         @keyframes dashMove { to { stroke-dashoffset: -24; } }
         
@@ -252,7 +257,7 @@
                     const relX = x + (canvasRect.left - containerRect.left);
                     const relY = y + (canvasRect.top - containerRect.top);
                     
-                    container.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 500px)`;
+                    container.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 280px)`;
                 }
 
                 const topY = chart.scales.y.top;
@@ -384,7 +389,7 @@
             return (
                 <div className="relative w-full h-[500px] bg-rwv-panel p-6 rounded-2xl border border-rwv-border shadow-2xl flex-1 flex flex-col overflow-hidden">
                     
-                    <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
+                    <div className="absolute top-[-150px] left-1/2 -translate-x-1/2 w-[800px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
                     <div className="flex justify-between items-center mb-4 z-20">
                         <h3 className="text-lg font-bold text-white tracking-wide">Trajektorie Monte Carlo</h3>
