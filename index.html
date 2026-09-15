@@ -67,7 +67,7 @@
             cursor: pointer; background: #232E30; border-radius: 2px;
         }
 
-        /* SVG Diagram & Flow Animations */
+        /* SVG Diagram Animations */
         .svg-node { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
         .node-active {
             fill: #151E20 !important;
@@ -120,7 +120,7 @@
 
         // --- CUSTOM CHART PLUGINS ---
         
-        // 1. Vertical Lines strictly inside the filled graph
+        // 1. Vertical Lines strictly inside the filled graph, matched exactly to Data Points
         const verticalUnderfillPlugin = {
             id: 'verticalUnderfill',
             beforeDatasetsDraw: (chart) => {
@@ -140,100 +140,124 @@
                 ctx.closePath();
                 ctx.clip();
                 
-                // Double density vertical lines (15px apart)
+                // Draw vertical lines ONLY at exact data point X coordinates
                 ctx.beginPath();
-                for (let x = chart.scales.x.left; x < chart.scales.x.right; x += 15) {
-                    ctx.moveTo(x, topY);
-                    ctx.lineTo(x, bottomY);
-                }
-                ctx.strokeStyle = 'rgba(198, 243, 79, 0.04)'; 
+                meta.data.forEach(p => {
+                    ctx.moveTo(p.x, topY);
+                    ctx.lineTo(p.x, bottomY);
+                });
+                ctx.strokeStyle = 'rgba(198, 243, 79, 0.08)'; 
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 ctx.restore();
             }
         };
 
-        // 2. Continuous Easing Hover, Line Darkening & Massive Gradient Cone
+        // 2. Complete Rendering Control: Dark Mode Hover, Fading Segment, Point Easing
         const advancedHoverPlugin = {
             id: 'advancedHover',
-            beforeDraw: (chart) => {
-                // If hovered, base line goes dark olive. If not, it's bright lime.
-                const isHovered = chart.tooltip?._active?.length > 0;
-                chart.data.datasets[0].borderColor = isHovered ? '#3a4722' : '#C6F34F';
-            },
-            afterDraw: (chart) => {
-                if (chart.tooltip?._active?.length) {
-                    const activePoint = chart.tooltip._active[0];
-                    const ctx = chart.ctx;
-                    
-                    // tooltipPosition provides the buttery smooth (eased) transit coordinates
-                    const { x, y } = activePoint.element.tooltipPosition();
-                    
-                    const topY = chart.scales.y.top;
-                    const bottomY = chart.scales.y.bottom;
-                    const leftX = chart.scales.x.left;
-                    const rightX = chart.scales.x.right;
-
-                    ctx.save();
-                    
-                    // Fading Crosshairs
-                    const gradY = ctx.createLinearGradient(0, topY, 0, bottomY);
-                    gradY.addColorStop(0, 'rgba(198, 243, 79, 0)');
-                    gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), 'rgba(198, 243, 79, 0.5)');
-                    gradY.addColorStop(1, 'rgba(198, 243, 79, 0)');
-
-                    const gradX = ctx.createLinearGradient(leftX, 0, rightX, 0);
-                    gradX.addColorStop(0, 'rgba(198, 243, 79, 0)');
-                    gradX.addColorStop(Math.max(0, Math.min(1, (x - leftX) / (rightX - leftX))), 'rgba(198, 243, 79, 0.5)');
-                    gradX.addColorStop(1, 'rgba(198, 243, 79, 0)');
-
-                    ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x, bottomY);
-                    ctx.strokeStyle = gradY; ctx.lineWidth = 1; ctx.stroke();
-
-                    ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(rightX, y);
-                    ctx.strokeStyle = gradX; ctx.lineWidth = 1; ctx.stroke();
-
-                    // The Massive Faded Lime Curve Overlay (Long Gradient)
-                    const meta = chart.getDatasetMeta(0);
-                    const points = meta.data;
-                    
-                    if (points.length > 0) {
-                        ctx.beginPath();
-                        ctx.moveTo(points[0].x, points[0].y);
-                        for (let i = 1; i < points.length; i++) {
-                            const prev = points[i-1];
-                            const curr = points[i];
-                            // Recreate entire line path perfectly
-                            ctx.bezierCurveTo(prev.cp2x, prev.cp2y, curr.cp1x, curr.cp1y, curr.x, curr.y);
-                        }
-                        
-                        // Apply a massive 300px radial stroke gradient centered on the hovered point
-                        const lineGrad = ctx.createRadialGradient(x, y, 0, x, y, 250);
-                        lineGrad.addColorStop(0, '#C6F34F'); // Core is bright lime
-                        lineGrad.addColorStop(1, 'rgba(198, 243, 79, 0)'); // Fades off elegantly
-                        
-                        ctx.strokeStyle = lineGrad;
-                        ctx.lineWidth = 4; // Slightly thicker for the glow effect
-                        ctx.shadowColor = '#C6F34F';
-                        ctx.shadowBlur = 15;
-                        ctx.stroke();
-                    }
-
-                    // Solid Center Dot
-                    ctx.beginPath();
-                    ctx.arc(x, y, 5, 0, 2 * Math.PI);
-                    ctx.fillStyle = '#C6F34F'; 
-                    ctx.shadowColor = '#C6F34F';
-                    ctx.shadowBlur = 10;
-                    ctx.fill();
-
-                    ctx.restore();
-
-                    // Pass smoothed coordinates to HTML Light Cone
-                    window.dispatchEvent(new CustomEvent('chartHover', { detail: { x, y }}));
-                } else {
-                    window.dispatchEvent(new CustomEvent('chartMouseOut'));
+            afterEvent: (chart, args) => {
+                const e = args.event;
+                if (e.type === 'mousemove' && e.inChartArea) {
+                    chart._isHovered = true;
+                } else if (e.type === 'mouseout') {
+                    chart._isHovered = false;
                 }
+                chart.draw();
+            },
+            beforeDatasetsDraw: (chart) => {
+                const ctx = chart.ctx;
+                const isHovered = chart._isHovered;
+                
+                // Toggle Base Line Color
+                chart.data.datasets[0].borderColor = isHovered ? '#3a4722' : '#C6F34F';
+                
+                // Toggle Base Fill Gradient
+                const topY = chart.chartArea.top;
+                const bottomY = chart.chartArea.bottom;
+                const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
+                if (isHovered) {
+                    grad.addColorStop(0, 'rgba(58, 71, 34, 0.2)'); 
+                    grad.addColorStop(1, 'rgba(58, 71, 34, 0)');
+                } else {
+                    grad.addColorStop(0, 'rgba(198, 243, 79, 0.15)'); 
+                    grad.addColorStop(1, 'rgba(198, 243, 79, 0)');
+                }
+                chart.data.datasets[0].backgroundColor = grad;
+            },
+            afterDatasetsDraw: (chart) => {
+                // Must draw AFTER datasets but BEFORE tooltips to guarantee Z-Index is correct
+                if (!chart._isHovered || !chart.tooltip?._active?.length) {
+                    window.dispatchEvent(new CustomEvent('chartMouseOut'));
+                    return;
+                }
+                
+                const activePoint = chart.tooltip._active[0];
+                const ctx = chart.ctx;
+                
+                // Natively smoothed coordinates that ease perfectly between points
+                const { x, y } = activePoint.element.tooltipPosition();
+                
+                const topY = chart.scales.y.top;
+                const bottomY = chart.scales.y.bottom;
+                const leftX = chart.scales.x.left;
+                const rightX = chart.scales.x.right;
+
+                ctx.save();
+                
+                // Fading Crosshairs
+                const gradY = ctx.createLinearGradient(0, topY, 0, bottomY);
+                gradY.addColorStop(0, 'rgba(198, 243, 79, 0)');
+                gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), 'rgba(198, 243, 79, 0.6)');
+                gradY.addColorStop(1, 'rgba(198, 243, 79, 0)');
+
+                const gradX = ctx.createLinearGradient(leftX, 0, rightX, 0);
+                gradX.addColorStop(0, 'rgba(198, 243, 79, 0)');
+                gradX.addColorStop(Math.max(0, Math.min(1, (x - leftX) / (rightX - leftX))), 'rgba(198, 243, 79, 0.6)');
+                gradX.addColorStop(1, 'rgba(198, 243, 79, 0)');
+
+                ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x, bottomY);
+                ctx.strokeStyle = gradY; ctx.lineWidth = 1; ctx.stroke();
+
+                ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(rightX, y);
+                ctx.strokeStyle = gradX; ctx.lineWidth = 1; ctx.stroke();
+
+                // Faded Line Segment (Constant Thickness, perfectly traces curve)
+                const meta = chart.getDatasetMeta(0);
+                const points = meta.data;
+                
+                if (points.length > 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.bezierCurveTo(points[i-1].cp2x, points[i-1].cp2y, points[i].cp1x, points[i].cp1y, points[i].x, points[i].y);
+                    }
+                    
+                    // Radial gradient mask makes the line visible only near the hovered point
+                    const lineGrad = ctx.createRadialGradient(x, y, 0, x, y, 250);
+                    lineGrad.addColorStop(0, '#C6F34F'); // Fully bright at hover point
+                    lineGrad.addColorStop(1, 'rgba(198, 243, 79, 0)'); // Fades to nothing down the line
+                    
+                    ctx.strokeStyle = lineGrad;
+                    ctx.lineWidth = 3; // Strict constant thickness
+                    ctx.stroke();
+                }
+
+                // Solid Center Dot (Under the tooltip)
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = '#0B1011';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#C6F34F';
+                ctx.shadowColor = '#C6F34F';
+                ctx.shadowBlur = 10;
+                ctx.stroke();
+
+                ctx.restore();
+
+                // Broadcast the smoothed point coordinates to the HTML light cone
+                window.dispatchEvent(new CustomEvent('chartHover', { detail: { x, y }}));
             }
         };
         Chart.register(verticalUnderfillPlugin, advancedHoverPlugin);
@@ -245,15 +269,15 @@
             const chartInstanceRef = useRef(null);
             const coneRef = useRef(null);
 
-            // Listen for smooth coordinates to move the light cone
+            // The massive HTML Light Cone listener
             useEffect(() => {
                 const handleHover = (e) => {
                     if (coneRef.current) {
-                        const x = e.detail.x + 24; 
+                        const x = e.detail.x + 24; // Align to padding
                         const y = e.detail.y + 24;
                         coneRef.current.style.opacity = 1;
-                        // Transform with a 20% Y-offset so the cone directs light mostly downwards
-                        coneRef.current.style.transform = `translate(calc(${x}px - 50%), calc(${y}px - 20%)) scale(1)`;
+                        // Transform cleanly to center exactly on the smoothed point
+                        coneRef.current.style.transform = `translate(calc(${x}px - 50%), calc(${y}px - 50%)) scale(1)`;
                     }
                 };
                 const handleMouseOut = () => {
@@ -277,7 +301,7 @@
                     const ctx = canvasRef.current.getContext('2d');
                     
                     const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-                    gradient.addColorStop(0, 'rgba(198, 243, 79, 0.15)'); // Subtle lime base
+                    gradient.addColorStop(0, 'rgba(198, 243, 79, 0.15)');
                     gradient.addColorStop(1, 'rgba(198, 243, 79, 0)');
 
                     chartInstanceRef.current = new Chart(ctx, {
@@ -287,12 +311,12 @@
                             datasets: [{
                                 label: `Predikce`,
                                 data: prices,
-                                borderColor: '#C6F34F', // Bright lime defaults
+                                borderColor: '#C6F34F',
                                 backgroundColor: gradient,
                                 borderWidth: 2,
                                 tension: 0.4, 
                                 pointRadius: 0, 
-                                pointHoverRadius: 0, // Handled mathematically
+                                pointHoverRadius: 0, 
                                 fill: true,
                             }]
                         },
@@ -300,17 +324,19 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             animation: { duration: 600, easing: 'easeOutQuart' },
+                            // This ensures the point easing transition takes 250ms
+                            hover: { animationDuration: 250 },
                             interaction: { intersect: false, mode: 'index' },
                             plugins: {
                                 legend: { display: false },
                                 tooltip: {
-                                    enabled: true, // Restored Tooltip
+                                    enabled: true,
                                     backgroundColor: '#151E20', titleColor: '#6B8286',
                                     bodyColor: '#C6F34F', borderColor: '#232E30',
                                     borderWidth: 1, padding: 12, displayColors: false,
                                     titleFont: { size: 11, family: 'system-ui' },
                                     bodyFont: { size: 14, family: 'system-ui', weight: 'bold' },
-                                    animation: { duration: 300, easing: 'easeOutQuart' }, // Smooth glide interpolation
+                                    animation: { duration: 250, easing: 'easeOutQuart' },
                                     callbacks: {
                                         title: (ctx) => ctx[0].label,
                                         label: (ctx) => '$' + ctx.parsed.y.toFixed(2)
@@ -340,14 +366,14 @@
                     {/* Massive Ambient Background Light (Top Edge) */}
                     <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
-                    {/* Massive Downward Light Cone (Directional Hover Gradient) */}
+                    {/* Massive Perfect Circle HTML Light Cone */}
                     <div 
                         ref={coneRef}
-                        className="absolute w-[800px] h-[800px] rounded-full pointer-events-none z-10 transition-transform duration-300 ease-out"
+                        className="absolute w-[800px] h-[800px] rounded-full pointer-events-none z-10 transition-transform duration-250 ease-out"
                         style={{
-                            background: 'radial-gradient(ellipse at 50% 20%, rgba(198,243,79,0.18) 0%, rgba(198,243,79,0) 65%)',
+                            background: 'radial-gradient(circle at 50% 50%, rgba(198,243,79,0.15) 0%, rgba(198,243,79,0) 50%)',
                             opacity: 0, top: 0, left: 0,
-                            transform: 'translate(-50%, -20%) scale(0.8)',
+                            transform: 'translate(-50%, -50%) scale(0.8)',
                             mixBlendMode: 'screen'
                         }}
                     ></div>
@@ -844,7 +870,7 @@
                 <div className="flex flex-col">
                     <div className="flex justify-between items-center mb-2">
                         <label className="text-xs font-semibold text-gray-300">{title}</label>
-                        <span className="font-sans font-semibold text-xs text-rwv-lime bg-rwv-lime/10 px-2 py-0.5 rounded border border-rwv-lime/30">
+                        <span className="font-sans font-semibold text-xs text-rwv-olive bg-rwv-olive/10 px-2 py-0.5 rounded border border-rwv-olive/30">
                             {value.toFixed(2)}
                         </span>
                     </div>
