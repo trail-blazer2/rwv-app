@@ -2,6 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
+    <meta name="robots" content="noindex, nofollow" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RWV Forecasting Terminal</title>
     <!-- Tailwind CSS -->
@@ -81,10 +82,18 @@
             transition: stroke 0.3s ease;
         }
 
+        /* Ambient Glow Override */
         .blur-\[150px\] {
-            background-color: rgb(200 206 185);
+            background-color: rgb(221, 226, 206) !important;
         }
 
+        /* Premium 3D Panel Border */
+        .premium-panel {
+            background: linear-gradient(#151E20, #151E20) padding-box,
+                        linear-gradient(45deg, #4C6368 0%, #232E30 25%, #232E30 75%, #4C6368 100%) border-box !important;
+            border: 1px solid transparent !important;
+            border-radius: 1rem !important; /* Matches rounded-2xl */
+        }
         
         @keyframes dashMove { to { stroke-dashoffset: -24; } }
         
@@ -122,6 +131,12 @@
             rnd_spend: "Výdaje na vědu a výzkum", edu_spend: "Výdaje na školství", health_spend: "Výdaje na zdravotnictví",
             net_migration: "Čistá migrace", dxy: "Dolarový index (DXY)"
         };
+
+        // Dummy data for immediate visual load state
+        const INITIAL_DUMMY_CURVE = Array.from({length: 27}, (_, i) => ({
+            day: (i + 1) * 15,
+            price: 80 + Math.sin(i / 4) * 2 + (i * 0.2)
+        }));
 
         // --- PURE CANVAS CHART PLUGINS ---
         
@@ -387,15 +402,15 @@
             }, []);
 
             return (
-                <div className="relative w-full h-[500px] bg-rwv-panel p-6 rounded-2xl border border-rwv-border shadow-2xl flex-1 flex flex-col overflow-hidden">
+                <div className="relative w-full h-[500px] premium-panel p-6 shadow-2xl flex-1 flex flex-col overflow-hidden">
                     
-                    <div className="absolute top-[-150px] left-1/2 -translate-x-1/2 w-[800px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
+                    <div className="absolute top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
                     <div className="flex justify-between items-center mb-4 z-20">
                         <h3 className="text-lg font-bold text-white tracking-wide">Trajektorie Monte Carlo</h3>
                         
                         <div className="h-6 flex items-center">
-                            {isSimulating || data.length === 0 ? (
+                            {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
                                 <span className="text-rwv-lime text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
                                     PŘEPOČÍTÁVÁM SDE
                                 </span>
@@ -577,7 +592,7 @@
         function Phase3LockedFeatures() {
             const features = ["Atribuce Faktorů", "Křivky Pravděpodobnosti", "Momentum Indexu"];
             return (
-                <div className="mt-6 bg-rwv-panel rounded-2xl border border-rwv-border p-5">
+                <div className="mt-6 premium-panel p-5">
                     <div className="flex items-center justify-between mb-4">
                         <h4 className="text-sm font-bold text-gray-300">Pokročilá Analytika (Fáze 3)</h4>
                         <span className="text-xs bg-rwv-border text-rwv-textMuted px-2 py-1 rounded-md uppercase tracking-wider font-bold">Připravuje se</span>
@@ -605,7 +620,9 @@
             const [viewTab, setViewTab] = useState('dashboard'); 
             const [selectedCommodityId, setSelectedCommodityId] = useState("Gold");
             const [defaultPredictions, setDefaultPredictions] = useState(null);
-            const [chartData, setChartData] = useState([]);
+            
+            // Start chartData with the dummy curve immediately instead of an empty array
+            const [chartData, setChartData] = useState(INITIAL_DUMMY_CURVE);
             const [healthData, setHealthData] = useState(null);
             
             // Standardizing the base indices to exactly 0.50 layout
@@ -794,7 +811,11 @@
                                         <p className="text-4xl font-sans font-semibold text-white">${spotPrice.toFixed(2)}</p>
                                     </div>
                                 </header>
-                                <ProjectionChart data={chartData} commodityLabel={currentLabel} isSimulating={isSimulating} />
+                                <ProjectionChart 
+                                    data={chartData} 
+                                    commodityLabel={currentLabel} 
+                                    isSimulating={isSimulating || !defaultPredictions} 
+                                />
                                 <Phase3LockedFeatures />
                             </div>
                         ) : viewTab === 'simulation' ? (
