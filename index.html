@@ -94,6 +94,43 @@
             border: 1px solid transparent !important;
             border-radius: 1rem !important; /* Matches rounded-2xl */
         }
+
+        /* Liquid Glass Auth Box */
+        .liquid-glass {
+            background: linear-gradient(135deg, rgba(21, 30, 32, 0.3) 0%, rgba(11, 16, 17, 0.5) 100%);
+            backdrop-filter: blur(24px) saturate(200%);
+            -webkit-backdrop-filter: blur(24px) saturate(200%);
+            border: 1px solid rgba(198, 243, 79, 0.1);
+            border-top: 1px solid rgba(198, 243, 79, 0.25);
+            border-left: 1px solid rgba(198, 243, 79, 0.25);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+        }
+
+        /* 3D Curved Gradient Button */
+        .btn-3d-curve {
+            background-color: #C6F34F; /* Bright graph line green */
+            /* The elliptical gradient creates the 3D curve rising from the bottom */
+            background-image: radial-gradient(ellipse 120% 80% at 50% 110%, #758749 0%, transparent 100%);
+            color: #0B1011;
+            box-shadow: inset 0 -3px 10px rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.7), 0 4px 15px rgba(198, 243, 79, 0.3);
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .btn-3d-curve:hover {
+            filter: brightness(1.05);
+            transform: translateY(-1px);
+            box-shadow: inset 0 -3px 10px rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.7), 0 6px 20px rgba(198, 243, 79, 0.5);
+        }
+
+        /* Floating Graph Lines Animations */
+        @keyframes float-line {
+            0% { transform: translateX(-5%) translateY(0px) scale(1); }
+            50% { transform: translateX(5%) translateY(-30px) scale(1.02); }
+            100% { transform: translateX(-5%) translateY(0px) scale(1); }
+        }
+        .floating-line-1 { animation: float-line 14s ease-in-out infinite; }
+        .floating-line-2 { animation: float-line 20s ease-in-out infinite reverse; animation-delay: -5s; }
+        .floating-line-3 { animation: float-line 17s ease-in-out infinite; animation-delay: -2s; }
         
         @keyframes dashMove { to { stroke-dashoffset: -24; } }
         
@@ -648,7 +685,6 @@
                     if (isLogin) {
                         onAuth(data.access_token);
                     } else {
-                        // Switch to login on successful signup
                         setIsLogin(true);
                         setError("Účet vytvořen. Nyní se můžete přihlásit.");
                         setPassword('');
@@ -662,27 +698,46 @@
 
             return (
                 <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg font-sans relative overflow-hidden animate-fade-in">
-                    <div className="w-96 premium-panel p-8 shadow-2xl flex flex-col relative z-20">
+                    
+                    {/* Animated Background SVG Lines */}
+                    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-rwv-lime rounded-full blur-[150px] opacity-10"></div>
+                        
+                        <svg className="absolute w-[120%] h-[120%] opacity-30" viewBox="0 0 1000 500" preserveAspectRatio="none">
+                            <defs>
+                                <filter id="line-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                    <feGaussianBlur stdDeviation="6" result="blur" />
+                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                </filter>
+                            </defs>
+                            <path className="floating-line-1" d="M-100,400 Q150,250 350,350 T650,200 T950,300 T1100,100" fill="none" stroke="#C6F34F" strokeWidth="2" filter="url(#line-glow)" style={{filter: 'blur(3px)'}}/>
+                            <path className="floating-line-2" d="M-100,450 Q200,350 400,200 T700,350 T900,150 T1100,250" fill="none" stroke="#758749" strokeWidth="3" filter="url(#line-glow)" style={{filter: 'blur(5px)'}}/>
+                            <path className="floating-line-3" d="M-100,250 Q100,150 300,200 T600,100 T800,250 T1100,50" fill="none" stroke="#C6F34F" strokeWidth="1.5" filter="url(#line-glow)" style={{filter: 'blur(2px)'}}/>
+                        </svg>
+                    </div>
+
+                    {/* Liquid Glass Auth Box */}
+                    <div className="w-96 liquid-glass rounded-2xl p-8 flex flex-col relative z-20">
                         <div className="flex justify-center mb-8">
-                            <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-8 opacity-80" />
+                            <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-8 opacity-90 drop-shadow-lg" />
                         </div>
-                        <h2 className="text-xl font-bold text-white mb-6 text-center tracking-wide">
+                        <h2 className="text-xl font-bold text-white mb-6 text-center tracking-wide drop-shadow-md">
                             {isLogin ? 'Přístup do terminálu' : 'Registrace operátora'}
                         </h2>
                         
-                        {error && <div className={`text-xs mb-4 text-center font-bold px-3 py-2 rounded border ${error.includes('vytvořen') ? 'bg-green-900/30 text-green-400 border-green-500/50' : 'bg-red-900/30 text-red-400 border-red-500/50'}`}>{error}</div>}
+                        {error && <div className={`text-xs mb-4 text-center font-bold px-3 py-2 rounded border backdrop-blur-md ${error.includes('vytvořen') ? 'bg-green-900/40 text-green-300 border-green-500/50' : 'bg-red-900/40 text-red-300 border-red-500/50'}`}>{error}</div>}
                         
                         <input 
                             type="email" 
                             placeholder="E-mailová adresa" 
-                            className="mb-4 bg-rwv-bg border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-lime transition" 
+                            className="mb-4 bg-rwv-bg/60 border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-lime focus:bg-rwv-bg/80 backdrop-blur-sm transition shadow-inner" 
                             value={email} 
                             onChange={e => setEmail(e.target.value)} 
                         />
                         <input 
                             type="password" 
                             placeholder="Bezpečnostní heslo" 
-                            className="mb-6 bg-rwv-bg border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-lime transition" 
+                            className="mb-8 bg-rwv-bg/60 border border-rwv-border rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-rwv-lime focus:bg-rwv-bg/80 backdrop-blur-sm transition shadow-inner" 
                             value={password} 
                             onChange={e => setPassword(e.target.value)} 
                         />
@@ -690,16 +745,15 @@
                         <button 
                             onClick={handleSubmit} 
                             disabled={loading}
-                            className={`w-full font-bold py-2.5 rounded-lg uppercase tracking-wider text-xs transition shadow-[0_0_15px_rgba(198,243,79,0.2)] ${loading ? 'bg-rwv-border text-gray-500 cursor-not-allowed' : 'bg-rwv-lime text-rwv-bg hover:bg-opacity-90'}`}
+                            className={`w-full font-bold py-3 rounded-lg uppercase tracking-wider text-xs ${loading ? 'bg-rwv-border text-gray-500 cursor-not-allowed' : 'btn-3d-curve'}`}
                         >
                             {loading ? 'Zpracovávám...' : (isLogin ? 'Autorizovat' : 'Zaregistrovat')}
                         </button>
                         
-                        <p className="text-rwv-textMuted text-xs text-center mt-6 cursor-pointer hover:text-white transition" onClick={() => {setIsLogin(!isLogin); setError(null);}}>
+                        <p className="text-gray-400 text-xs text-center mt-6 cursor-pointer hover:text-white transition drop-shadow" onClick={() => {setIsLogin(!isLogin); setError(null);}}>
                             {isLogin ? 'Požádat o přístup (Registrace)' : 'Zpět na přihlášení'}
                         </p>
                     </div>
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
                 </div>
             );
         }
