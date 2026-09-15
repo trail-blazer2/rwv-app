@@ -120,13 +120,13 @@
 
         // --- PURE CANVAS CHART PLUGINS ---
         
-        // 1. Vertical Lines strictly inside the filled graph, matching data points and midpoints
+        // 1. Vertical Lines matching Data Points, strictly inside the filled graph
         const verticalUnderfillPlugin = {
             id: 'verticalUnderfill',
             beforeDatasetDraw: (chart, args) => {
                 const ctx = chart.ctx;
                 const meta = args.meta;
-                if (!meta || !meta.data || !meta.data.length || !chart.chartArea) return; // Safely exit if dataset isn't ready
+                if (!meta || !meta.data.length || !chart.chartArea) return;
                 
                 const topY = chart.chartArea.top;
                 const bottomY = chart.chartArea.bottom;
@@ -142,7 +142,7 @@
                 ctx.clip();
                 
                 ctx.beginPath();
-                // Draw vertical lines exactly on the data points AND exact midpoints
+                // Draw vertical lines at exact data points AND exact midpoints
                 for (let i = 0; i < meta.data.length; i++) {
                     const px = meta.data[i].x;
                     ctx.moveTo(px, topY);
@@ -161,63 +161,39 @@
             }
         };
 
-        // 2. Easing Hover, Darkening Toggle, and Highlights
+        // 2. Continuous Easing Hover, Darkening Toggle, Massive Radial Cone
         const advancedHoverPlugin = {
             id: 'advancedHover',
-            beforeEvent: (chart, args) => {
-                const e = args.event;
-                if (e.type === 'mousemove' && e.inChartArea) {
-                    chart._targetAlpha = 1;
-                } else if (e.type === 'mouseout') {
-                    chart._targetAlpha = 0;
-                }
-            },
             beforeDatasetDraw: (chart, args) => {
                 const ctx = chart.ctx;
                 const meta = args.meta;
-                if (!meta || !meta.dataset || !chart.chartArea) return; // Crash prevention
+                if (!chart.chartArea) return;
 
-                if (chart._darkAlpha === undefined) chart._darkAlpha = 0;
-                if (chart._targetAlpha === undefined) chart._targetAlpha = 0;
-                
-                // 1. Smoothly Lerp the overall Graph Darkening Effect
-                let needsRedraw = false;
-                if (Math.abs(chart._targetAlpha - chart._darkAlpha) > 0.01) {
-                    chart._darkAlpha += (chart._targetAlpha - chart._darkAlpha) * 0.15;
-                    needsRedraw = true;
-                } else {
-                    chart._darkAlpha = chart._targetAlpha;
-                }
-
-                // Lerp Colors from Bright Lime (198, 243, 79) to Dark Olive (58, 71, 34)
-                const r = Math.round(198 + (58 - 198) * chart._darkAlpha);
-                const g = Math.round(243 + (71 - 243) * chart._darkAlpha);
-                const b = Math.round(79 + (34 - 79) * chart._darkAlpha);
-                const aFill = 0.15 + (0.4 - 0.15) * chart._darkAlpha; // Background opacity increases slightly when dark
-                
-                meta.dataset.options.borderColor = `rgb(${r}, ${g}, ${b})`;
-                
+                const isHovered = chart.tooltip?._active?.length > 0;
                 const topY = chart.chartArea.top;
                 const bottomY = chart.chartArea.bottom;
-                const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
-                grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${aFill})`);
-                grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-                meta.dataset.options.backgroundColor = grad;
 
-                if (needsRedraw) {
-                    requestAnimationFrame(() => chart.draw());
+                // Instantly flip entire graph color scheme when hovered
+                const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
+                if (isHovered) {
+                    grad.addColorStop(0, 'rgba(58, 71, 34, 0.4)'); // Dark olive fill
+                    grad.addColorStop(1, 'rgba(58, 71, 34, 0)');
+                    meta.dataset.options.borderColor = '#3a4722';  // Dark olive line
+                    meta.dataset.options.backgroundColor = grad;
+                } else {
+                    grad.addColorStop(0, 'rgba(198, 243, 79, 0.15)'); // Bright lime fill
+                    grad.addColorStop(1, 'rgba(198, 243, 79, 0)');
+                    meta.dataset.options.borderColor = '#C6F34F';  // Bright lime line
+                    meta.dataset.options.backgroundColor = grad;
                 }
             },
             afterDatasetsDraw: (chart) => {
-                if (!chart.tooltip?._active?.length || chart._darkAlpha <= 0) {
-                    window.dispatchEvent(new CustomEvent('chartMouseOut'));
-                    return;
-                }
+                if (!chart.tooltip?._active?.length) return;
                 
                 const activePoint = chart.tooltip._active[0];
                 const ctx = chart.ctx;
                 
-                // Native Tooltip Easing provides perfect synced interpolation
+                // Natively smoothed coordinates that ease perfectly between points
                 const { x, y } = activePoint.element.tooltipPosition();
                 
                 const topY = chart.scales.y.top;
@@ -226,17 +202,26 @@
                 const rightX = chart.scales.x.right;
 
                 ctx.save();
+
+                // 1. Massive Perfect Circle Light Cone Background
+                const coneGrad = ctx.createRadialGradient(x, y, 0, x, y, 300);
+                coneGrad.addColorStop(0, 'rgba(198, 243, 79, 0.25)'); // Intense center
+                coneGrad.addColorStop(1, 'rgba(198, 243, 79, 0)');    // Fades completely
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 300, 0, 2 * Math.PI);
+                ctx.fillStyle = coneGrad;
+                ctx.fill();
                 
                 // 2. Fading Crosshairs
-                const crosshairAlpha = 0.6 * chart._darkAlpha;
                 const gradY = ctx.createLinearGradient(0, topY, 0, bottomY);
                 gradY.addColorStop(0, 'rgba(198, 243, 79, 0)');
-                gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), `rgba(198, 243, 79, ${crosshairAlpha})`);
+                gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), 'rgba(198, 243, 79, 0.6)');
                 gradY.addColorStop(1, 'rgba(198, 243, 79, 0)');
 
                 const gradX = ctx.createLinearGradient(leftX, 0, rightX, 0);
                 gradX.addColorStop(0, 'rgba(198, 243, 79, 0)');
-                gradX.addColorStop(Math.max(0, Math.min(1, (x - leftX) / (rightX - leftX))), `rgba(198, 243, 79, ${crosshairAlpha})`);
+                gradX.addColorStop(Math.max(0, Math.min(1, (x - leftX) / (rightX - leftX))), 'rgba(198, 243, 79, 0.6)');
                 gradX.addColorStop(1, 'rgba(198, 243, 79, 0)');
 
                 ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x, bottomY);
@@ -245,7 +230,7 @@
                 ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(rightX, y);
                 ctx.strokeStyle = gradX; ctx.lineWidth = 1; ctx.stroke();
 
-                // 3. Highlighted Curve Segment (Constant Thickness = 2)
+                // 3. Faded Line Segment (Constant Thickness, perfectly traces curve)
                 const meta = chart.getDatasetMeta(0);
                 const points = meta.data;
                 
@@ -256,70 +241,41 @@
                         ctx.bezierCurveTo(points[i-1].cp2x, points[i-1].cp2y, points[i].cp1x, points[i].cp1y, points[i].x, points[i].y);
                     }
                     
-                    // Radial gradient mask limits the brightness to the hovered area seamlessly
-                    const lineGrad = ctx.createRadialGradient(x, y, 0, x, y, 300);
-                    lineGrad.addColorStop(0, `rgba(198, 243, 79, ${chart._darkAlpha})`);
+                    // Radial mask keeps line bright near cursor, fading off over distance
+                    const lineGrad = ctx.createRadialGradient(x, y, 0, x, y, 200);
+                    lineGrad.addColorStop(0, '#C6F34F');
                     lineGrad.addColorStop(1, 'rgba(198, 243, 79, 0)');
                     
                     ctx.strokeStyle = lineGrad;
-                    ctx.lineWidth = 2; // Strict constant thickness matching base line
+                    ctx.lineWidth = 3; 
                     ctx.stroke();
                 }
 
-                // 4. Solid Center Dot
+                // 4. Solid Center Dot (Renders beneath the native tooltip)
                 ctx.beginPath();
                 ctx.arc(x, y, 6, 0, 2 * Math.PI);
                 ctx.fillStyle = '#0B1011';
                 ctx.fill();
                 ctx.lineWidth = 2;
-                ctx.strokeStyle = `rgba(198, 243, 79, ${chart._darkAlpha})`;
+                ctx.strokeStyle = '#C6F34F';
                 ctx.shadowColor = '#C6F34F';
-                ctx.shadowBlur = 10 * chart._darkAlpha;
+                ctx.shadowBlur = 10;
                 ctx.stroke();
 
                 ctx.restore();
-
-                // Broadcast mathematically smoothed coordinates to HTML Light Cone
-                window.dispatchEvent(new CustomEvent('chartHover', { detail: { x, y, alpha: chart._darkAlpha }}));
             }
         };
         Chart.register(verticalUnderfillPlugin, advancedHoverPlugin);
 
         // --- DASHBOARD CHART COMPONENT ---
         function ProjectionChart({ data, commodityLabel, isSimulating }) {
-            const containerRef = useRef(null);
             const canvasRef = useRef(null);
             const chartInstanceRef = useRef(null);
-            const coneRef = useRef(null);
-
-            useEffect(() => {
-                const handleHover = (e) => {
-                    if (coneRef.current) {
-                        const x = e.detail.x + 24; // Align to padding (p-6 = 24px)
-                        const y = e.detail.y + 24; 
-                        coneRef.current.style.opacity = e.detail.alpha;
-                        // CSS transforms ease perfectly alongside the tooltip
-                        coneRef.current.style.transform = `translate(calc(${x}px - 50%), calc(${y}px - 50%)) scale(1)`;
-                    }
-                };
-                const handleMouseOut = () => {
-                    if (coneRef.current) { 
-                        coneRef.current.style.opacity = 0; 
-                        coneRef.current.style.transform = coneRef.current.style.transform.replace('scale(1)', 'scale(0.9)');
-                    }
-                };
-                window.addEventListener('chartHover', handleHover);
-                window.addEventListener('chartMouseOut', handleMouseOut);
-                return () => {
-                    window.removeEventListener('chartHover', handleHover);
-                    window.removeEventListener('chartMouseOut', handleMouseOut);
-                };
-            }, []);
 
             useEffect(() => {
                 if (!canvasRef.current || !data || data.length === 0) return;
 
-                const labels = data.map(d => `+${d.day} d`);
+                const labels = data.map(d => `+${d.day} dní`);
                 const prices = data.map(d => d.price);
 
                 if (!chartInstanceRef.current) {
@@ -346,8 +302,7 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             animation: { duration: 600, easing: 'easeOutQuart' },
-                            // Native interaction hover easing controls tooltip + plugins
-                            hover: { animationDuration: 250 },
+                            hover: { animationDuration: 400 }, // Generates the smooth frames for the plugins
                             interaction: { intersect: false, mode: 'index' },
                             plugins: {
                                 legend: { display: false },
@@ -358,7 +313,7 @@
                                     borderWidth: 1, padding: 12, displayColors: false,
                                     titleFont: { size: 11, family: 'system-ui' },
                                     bodyFont: { size: 14, family: 'system-ui', weight: 'bold' },
-                                    animation: { duration: 250, easing: 'easeOutQuart' }, // Glide duration
+                                    animation: { duration: 400, easing: 'easeOutQuart' }, // Smooth glide interpolation
                                     callbacks: {
                                         title: (ctx) => ctx[0].label,
                                         label: (ctx) => '$' + ctx.parsed.y.toFixed(2)
@@ -383,22 +338,10 @@
             }, []);
 
             return (
-                <div ref={containerRef} className="relative w-full h-[500px] bg-rwv-panel p-6 rounded-2xl border border-rwv-border shadow-2xl flex-1 flex flex-col overflow-hidden">
+                <div className="relative w-full h-[500px] bg-rwv-panel p-6 rounded-2xl border border-rwv-border shadow-2xl flex-1 flex flex-col overflow-hidden">
                     
                     {/* Massive Ambient Background Light (Top Edge) */}
                     <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
-
-                    {/* Massive Perfect Circle HTML Light Cone */}
-                    <div 
-                        ref={coneRef}
-                        className="absolute w-[1200px] h-[1200px] rounded-full pointer-events-none z-10 transition-transform duration-200 ease-out"
-                        style={{
-                            background: 'radial-gradient(circle at 50% 50%, rgba(198,243,79,0.15) 0%, rgba(198,243,79,0) 50%)',
-                            opacity: 0, top: 0, left: 0,
-                            transform: 'translate(-50%, -50%) scale(0.9)',
-                            mixBlendMode: 'screen'
-                        }}
-                    ></div>
 
                     <div className="flex justify-between items-center mb-4 z-20">
                         <h3 className="text-lg font-bold text-white tracking-wide">Trajektorie Monte Carlo</h3>
@@ -417,7 +360,7 @@
                         </div>
                     </div>
                     
-                    {/* Z-Index 20 ensures tooltip is rendered strictly above the HTML light cone */}
+                    {/* Canvas wrapper ensures Native tooltips sit strictly above the canvas plugins */}
                     <div className="relative flex-1 w-full z-20">
                         <canvas ref={canvasRef}></canvas>
                     </div>
@@ -823,9 +766,9 @@
                                     <div>
                                         <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-4">Živé Ladění Parametrů</h2>
                                         <div className="flex flex-col gap-6">
-                                            <SidebarSlider title="Ekonomická Aktivita (A_it)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
-                                            <SidebarSlider title="Intenzita Deficitu (D_it)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
-                                            <SidebarSlider title="Systémové Riziko (R_it)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
+                                            <SidebarSlider title="Ekonomická Aktivita (A)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
+                                            <SidebarSlider title="Intenzita Deficitu (D)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
+                                            <SidebarSlider title="Systémové Riziko (R)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
                                         </div>
                                     </div>
                                 </div>
