@@ -187,10 +187,15 @@
 
                 const topY = chart.chartArea.top;
                 const bottomY = chart.chartArea.bottom;
-                const o = chart._rwv_hover_opacity; // Range: 0 (Normal) to 1 (Hovered)
+                const o = chart._rwv_hover_opacity; 
 
-                // Helper to mathematically blend RGBA arrays
-                const blend = (c1, c2, factor) => c1.map((val, i) => val + (c2[i] - val) * factor);
+                // CRITICAL FIX: Math.round() prevents malformed canvas color strings, keeping the fade active at all times
+                const blend = (c1, c2, factor) => [
+                    Math.round(c1[0] + (c2[0] - c1[0]) * factor),
+                    Math.round(c1[1] + (c2[1] - c1[1]) * factor),
+                    Math.round(c1[2] + (c2[2] - c1[2]) * factor),
+                    c1[3] + (c2[3] - c1[3]) * factor 
+                ];
                 
                 const currentFill = blend([198, 243, 79, 0.15], [58, 71, 34, 0.4], o);
                 const currentBorder = blend([198, 243, 79], [58, 71, 34], o);
@@ -203,22 +208,26 @@
                 meta.dataset.options.backgroundColor = grad;
             },
             afterDatasetsDraw: (chart) => {
-                // If completely unhovered and visually faded out, kill the crosshair coordinates
-                if (chart._rwv_hover_opacity <= 0.01 && !(chart.tooltip?._active?.length > 0)) {
+                const isHovered = chart.tooltip?._active?.length > 0;
+                
+                // Target the main 500px parent element holding the canvas
+                const container = chart.canvas.closest('.h-\\[500px\\]') || chart.canvas.parentElement.parentElement;
+                
+                // Cleanup when completely unhovered
+                if (chart._rwv_hover_opacity <= 0.01 && !isHovered) {
                     chart._rwv_crosshair = null;
+                    if (container) container.style.backgroundImage = ''; // Remove CSS glow
                     return;
                 }
                 
-                const isHovered = chart.tooltip?._active?.length > 0;
                 const ctx = chart.ctx;
-                
                 if (!chart._rwv_crosshair) chart._rwv_crosshair = { x: null, y: null };
                 
                 if (isHovered) {
                     const activePoint = chart.tooltip._active[0];
                     const { x: tx, y: ty } = activePoint.element.tooltipPosition();
                     
-                    // Smooth tracking between data points
+                    // Smooth tracking
                     if (chart._rwv_crosshair.x === null) {
                         chart._rwv_crosshair.x = tx;
                         chart._rwv_crosshair.y = ty;
@@ -227,7 +236,6 @@
                         chart._rwv_crosshair.y += (ty - chart._rwv_crosshair.y) * 0.15;
                     }
                     
-                    // Keep requesting frames until the crosshair completely catches up to the target point
                     if (Math.abs(tx - chart._rwv_crosshair.x) > 0.1 || Math.abs(ty - chart._rwv_crosshair.y) > 0.1) {
                         requestAnimationFrame(() => chart.render());
                     }
@@ -239,6 +247,16 @@
                 
                 if (x === null || y === null) return;
 
+                // 1. Massive Radial Glow (Applied via CSS to bypass canvas clipping and fill the entire 500px UI)
+                if (container) {
+                    const canvasRect = chart.canvas.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    const relX = x + (canvasRect.left - containerRect.left);
+                    const relY = y + (canvasRect.top - containerRect.top);
+                    
+                    container.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 800px)`;
+                }
+
                 const topY = chart.scales.y.top;
                 const bottomY = chart.scales.y.bottom;
                 const leftX = chart.scales.x.left;
@@ -246,17 +264,6 @@
 
                 ctx.save();
 
-                // 1. Massive Perfect Circle Light Cone Background (filling the element)
-                const maxRadius = Math.sqrt(Math.pow(chart.width, 2) + Math.pow(chart.height, 2));
-                const coneGrad = ctx.createRadialGradient(x, y, 0, x, y, maxRadius);
-                coneGrad.addColorStop(0, `rgba(198, 243, 79, ${0.25 * o})`); 
-                coneGrad.addColorStop(1, 'rgba(198, 243, 79, 0)');
-                
-                ctx.beginPath();
-                ctx.rect(0, 0, chart.width, chart.height); 
-                ctx.fillStyle = coneGrad;
-                ctx.fill();
-                
                 // 2. Fading Crosshairs
                 const gradY = ctx.createLinearGradient(0, topY, 0, bottomY);
                 gradY.addColorStop(0, 'rgba(198, 243, 79, 0)');
@@ -290,7 +297,6 @@
                     lineGrad.addColorStop(1, 'rgba(198, 243, 79, 0)');
                     
                     ctx.strokeStyle = lineGrad;
-                    // Dynamically matches standard line thickness, modifying only the color
                     ctx.lineWidth = meta.dataset.options.borderWidth || 2; 
                     ctx.stroke();
                 }
