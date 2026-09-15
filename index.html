@@ -643,7 +643,7 @@
             const panelData = [
                 { title: "UKÁZKA VÝPOČTU", desc: "Zde se ukáže průběh výpočtu pomocí celého modelu v pomalé verzi pro ukázku.", metrics: [] },
                 { title: "FÁZE 1: GLOBÁLNÍ SBĚR DAT", desc: "Získávání makro dat (Světová banka, FRED), fyzických fundamentů (EIA pro energie, USGS/ICCO pro kovy a kakao), počasí a historických cen (yfinance) pro pozdější výpočet korelací.", metrics: [{label: "Globální HDP", val: "+2.1%"}, {label: "Jádrová Inflace", val: "3.4%"}, {label: "USGS/ICCO Data", val: "6 komodit"}, {label: "Exp. Futures", val: "N=4"}] },
-                { title: "FÁZE 2: ROZDĚLENÍ DÍLČÍCH KOMPONENT", desc: "Rozdělení indikátorů na volatilní a základní meze. Výpočet intenzity deficitu a REÁLNÉ korelační matice mezi komoditami (z historických výnosů) pro šíření šoků.", metrics: [{label: "Volatilní F(it)", val: "0.62"}, {label: "Základní L(it)", val: "0.55"}, {label: "Intenzita Def. (Λ)", val: "1.44"}, {label: "Korelace (příklad)", val: "0.47"}] },
+                { title: "FÁZE 2: ROZDĚLENÍ DÍLČÍCH KOMPONENT", desc: "Rozdělení indikátorů na volatilní a základní meze. Výpočet intenzity deficitu a reálné korelační matice mezi komoditami (z historických výnosů) pro šíření šoků.", metrics: [{label: "Volatilní F(it)", val: "0.62"}, {label: "Základní L(it)", val: "0.55"}, {label: "Intenzita Def. (Λ)", val: "1.44"}, {label: "Korelace (příklad)", val: "0.47"}] },
                 { title: "FÁZE 3: HLAVNÍ MAKRO INDEXY", desc: "Syntéza normalizovaných matic A(it), D(it) a R(it) přes hyperbolické tangenty.", metrics: [{label: "Aktivita (A)", val: "0.58"}, {label: "Deficit (D)", val: "0.74"}, {label: "Systém. Riziko", val: "0.39"}] },
                 { title: "FÁZE 4: MADR & MARKOVOVY REŽIMY", desc: "Centrování parametrů (a, d, r). Index šoku nyní čerpá ze skutečné korelační matice komodit místo pevných odhadů.", metrics: [{label: "Vystředěno (a,d,r)", val: "[.16, .48, -.22]"}, {label: "Pravděp. (π)", val: "[.1, .2, .6, .1]"}, {label: "Šíření šoku (G_zt)", val: "0.09"}] },
                 { title: "FÁZE 5: CÍLE ROVNOVÁHY, DRŽBA A TRŽNÍ KŘIVKA", desc: "Výpočet dlouhodobého cíle M(it) a nákladů držby c(carry). Následně optimalizace tržní křivky f(mkt) metodou nejmenších čtverců vůči dvěma aktivním futures kontraktům.", metrics: [{label: "Základní Cíl M(it)", val: "4.12"}, {label: "Náklad c(carry)", val: "0.08"}, {label: "Fit křivky f(mkt)", val: "konvergováno"}] },
@@ -659,7 +659,7 @@
                         <div className="flex justify-between items-center mb-6 shrink-0 z-10">
                             <div>
                                 <h2 className="text-2xl font-bold text-white tracking-tight">Tok Matematické Architektury</h2>
-                                <p className="text-rwv-textMuted text-sm mt-1">Telemetrie dat v reálném čase přes systém vzorců</p>
+                                <p className="text-rwv-textMuted text-sm mt-1">Telemetrie dat ve zpomalené verzi přes systém vzorců</p>
                             </div>
                             <button 
                                 onClick={triggerPlay}
