@@ -56,9 +56,9 @@
             -webkit-appearance: none;
             height: 14px; width: 14px;
             border-radius: 50%;
-            background: #C6F34F;
+            background: #758749;
             cursor: pointer; margin-top: -5px;
-            box-shadow: 0 0 10px rgba(198, 243, 79, 0.4);
+            box-shadow: 0 0 10px rgba(117, 135, 73, 0.4);
             transition: transform 0.1s ease;
         }
         input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
@@ -133,7 +133,6 @@
                 
                 ctx.save();
                 
-                // Mask to ensure lines only render inside the green fill
                 ctx.beginPath();
                 ctx.moveTo(meta.data[0].x, bottomY);
                 meta.data.forEach(p => ctx.lineTo(p.x, p.y));
@@ -142,7 +141,6 @@
                 ctx.clip();
                 
                 ctx.beginPath();
-                // Draw vertical lines at exact data points AND exact midpoints
                 for (let i = 0; i < meta.data.length; i++) {
                     const px = meta.data[i].x;
                     ctx.moveTo(px, topY);
@@ -172,18 +170,15 @@
                 const topY = chart.chartArea.top;
                 const bottomY = chart.chartArea.bottom;
                 
-                // Prevent gradient errors during initial zero-height render frames
                 if (bottomY <= topY) return; 
 
                 const isHovered = chart.tooltip?._active?.length > 0;
                 
-                // Initialize easing state
                 if (chart._rwv_hover_opacity === undefined) chart._rwv_hover_opacity = 0;
                 
                 const targetOpacity = isHovered ? 1 : 0;
                 const opacityDiff = targetOpacity - chart._rwv_hover_opacity;
                 
-                // Eased transition in and out of the darker graph state
                 if (Math.abs(opacityDiff) > 0.01) {
                     chart._rwv_hover_opacity += opacityDiff * 0.1;
                     requestAnimationFrame(() => chart.render());
@@ -204,14 +199,11 @@
                 const currentBorder = blend([198, 243, 79], [58, 71, 34], o);
 
                 const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
-                // .toFixed(3) ensures canvas never rejects the string during alpha easing
                 grad.addColorStop(0, `rgba(${currentFill[0]}, ${currentFill[1]}, ${currentFill[2]}, ${currentFill[3].toFixed(3)})`);
                 grad.addColorStop(1, `rgba(${currentFill[0]}, ${currentFill[1]}, ${currentFill[2]}, 0)`);
                 
                 const borderColorStr = `rgb(${currentBorder[0]}, ${currentBorder[1]}, ${currentBorder[2]})`;
                 
-                // CRITICAL FIX: Update both the meta options AND the underlying dataset configuration 
-                // to prevent Chart.js from falling back to the solid color string during data-change animations.
                 meta.dataset.options.borderColor = borderColorStr;
                 meta.dataset.options.backgroundColor = grad;
                 
@@ -220,14 +212,11 @@
             },
             afterDatasetsDraw: (chart) => {
                 const isHovered = chart.tooltip?._active?.length > 0;
-                
-                // Target the main 500px parent element holding the canvas
                 const container = chart.canvas.closest('.h-\\[500px\\]') || chart.canvas.parentElement.parentElement;
                 
-                // Cleanup when completely unhovered
                 if (chart._rwv_hover_opacity <= 0.01 && !isHovered) {
                     chart._rwv_crosshair = null;
-                    if (container) container.style.backgroundImage = ''; // Remove CSS glow
+                    if (container) container.style.backgroundImage = ''; 
                     return;
                 }
                 
@@ -238,7 +227,6 @@
                     const activePoint = chart.tooltip._active[0];
                     const { x: tx, y: ty } = activePoint.element.tooltipPosition();
                     
-                    // Smooth tracking
                     if (chart._rwv_crosshair.x === null) {
                         chart._rwv_crosshair.x = tx;
                         chart._rwv_crosshair.y = ty;
@@ -258,15 +246,13 @@
                 
                 if (x === null || y === null) return;
 
-                // 1. Massive Radial Glow (Applied via CSS to bypass canvas clipping and fill the UI)
                 if (container) {
                     const canvasRect = chart.canvas.getBoundingClientRect();
                     const containerRect = container.getBoundingClientRect();
                     const relX = x + (canvasRect.left - containerRect.left);
                     const relY = y + (canvasRect.top - containerRect.top);
                     
-                    // The radius is currently set to 500px here at the end of the string
-                    container.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 300px)`;
+                    container.style.backgroundImage = `radial-gradient(circle at ${relX}px ${relY}px, rgba(198, 243, 79, ${0.12 * o}) 0%, transparent 500px)`;
                 }
 
                 const topY = chart.scales.y.top;
@@ -276,7 +262,6 @@
 
                 ctx.save();
 
-                // 2. Fading Crosshairs
                 const gradY = ctx.createLinearGradient(0, topY, 0, bottomY);
                 gradY.addColorStop(0, 'rgba(198, 243, 79, 0)');
                 gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), `rgba(198, 243, 79, ${0.6 * o})`);
@@ -293,7 +278,6 @@
                 ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(rightX, y);
                 ctx.strokeStyle = gradX; ctx.lineWidth = 1; ctx.stroke();
 
-                // 3. Faded Line Segment
                 const meta = chart.getDatasetMeta(0);
                 const points = meta.data;
                 
@@ -313,7 +297,6 @@
                     ctx.stroke();
                 }
 
-                // 4. Solid Center Dot
                 ctx.beginPath();
                 ctx.arc(x, y, 6, 0, 2 * Math.PI);
                 ctx.fillStyle = `rgba(11, 16, 17, ${o})`;
@@ -350,7 +333,6 @@
                             datasets: [{
                                 label: `Predikce`,
                                 data: prices,
-                                // Defaults setup (Overwritten dynamically by plugin)
                                 borderColor: '#C6F34F',
                                 backgroundColor: 'rgba(198, 243, 79, 0.15)',
                                 borderWidth: 2,
@@ -364,7 +346,7 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             animation: { duration: 600, easing: 'easeOutQuart' },
-                            hover: { animationDuration: 400 }, // Generates the smooth frames for the plugins
+                            hover: { animationDuration: 400 }, 
                             interaction: { intersect: false, mode: 'index' },
                             plugins: {
                                 legend: { display: false },
@@ -375,7 +357,7 @@
                                     borderWidth: 1, padding: 12, displayColors: false,
                                     titleFont: { size: 11, family: 'system-ui' },
                                     bodyFont: { size: 14, family: 'system-ui', weight: 'bold' },
-                                    animation: { duration: 400, easing: 'easeOutQuart' }, // Smooth glide interpolation
+                                    animation: { duration: 400, easing: 'easeOutQuart' }, 
                                     callbacks: {
                                         title: (ctx) => ctx[0].label,
                                         label: (ctx) => '$' + ctx.parsed.y.toFixed(2)
@@ -402,7 +384,6 @@
             return (
                 <div className="relative w-full h-[500px] bg-rwv-panel p-6 rounded-2xl border border-rwv-border shadow-2xl flex-1 flex flex-col overflow-hidden">
                     
-                    {/* Massive Ambient Background Light (Top Edge) */}
                     <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
                     <div className="flex justify-between items-center mb-4 z-20">
@@ -422,7 +403,6 @@
                         </div>
                     </div>
                     
-                    {/* Canvas wrapper ensures Native tooltips sit strictly above the canvas plugins */}
                     <div className="relative flex-1 w-full z-20">
                         <canvas ref={canvasRef}></canvas>
                     </div>
@@ -612,51 +592,6 @@
             );
         }
 
-        // --- HEALTH WIDGET COMPONENT ---
-        function DataHealthWidget({ healthData }) {
-            const [isOpen, setIsOpen] = useState(false);
-            if (!healthData) return null;
-
-            return (
-                <div className="fixed bottom-6 right-6 z-50 w-80 bg-rwv-panel border border-rwv-border rounded-xl shadow-2xl transition-all duration-300">
-                    <div 
-                        className="p-4 flex justify-between items-center cursor-pointer rounded-t-xl hover:bg-rwv-border/50 transition"
-                        onClick={() => setIsOpen(!isOpen)}
-                    >
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                            <h3 className="font-bold text-sm text-gray-200">Stav Datového Toku</h3>
-                        </div>
-                        <span className="text-rwv-textMuted text-xs">{isOpen ? '▼' : '▲'}</span>
-                    </div>
-                    
-                    {isOpen && (
-                        <div className="p-4 max-h-80 overflow-y-auto custom-scrollbar bg-rwv-bg rounded-b-xl border-t border-rwv-border">
-                            {Object.entries(healthData).map(([category, metrics]) => (
-                                <div key={category} className="mb-4 last:mb-0">
-                                    <h4 className="text-[10px] font-bold uppercase text-rwv-textMuted mb-2 tracking-widest border-b border-rwv-border pb-1">
-                                        {TRANSLATIONS[category] || category.replace('_', ' ')}
-                                    </h4>
-                                    <ul className="space-y-1.5">
-                                        {Object.entries(metrics).map(([key, info]) => (
-                                            <li key={key} className="flex justify-between items-center text-xs">
-                                                <span className="text-gray-400 truncate w-32" title={TRANSLATIONS[key] || key}>
-                                                    {TRANSLATIONS[key] || key.replace('_', ' ')}
-                                                </span>
-                                                <span className={`font-sans font-semibold text-[10px] px-1.5 py-0.5 rounded ${info.status.includes('OK') ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
-                                                    {info.status}
-                                                </span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
         // --- MAIN APP COMPONENT ---
         function App() {
             const [appReady, setAppReady] = useState(false);
@@ -668,6 +603,7 @@
             const [chartData, setChartData] = useState([]);
             const [healthData, setHealthData] = useState(null);
             
+            // Standardizing the base indices to exactly 0.50 layout
             const [sliders, setSliders] = useState({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
             const [isSimulating, setIsSimulating] = useState(false);
             const [error, setError] = useState(null);
@@ -710,7 +646,7 @@
             useEffect(() => {
                 if (defaultPredictions && defaultPredictions[selectedCommodityId]) {
                     const data = defaultPredictions[selectedCommodityId];
-                    setSliders({ A_it: data.indices.A, D_it: data.indices.D, R_it: data.indices.R });
+                    // Removed the setSliders override here so the controls stay fixed
                     setChartData(data.projection_curve);
                 }
             }, [selectedCommodityId, defaultPredictions]);
@@ -789,10 +725,10 @@
                                 Matematický Model
                             </button>
                             <button 
-                                onClick={() => setViewTab('debug')}
-                                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'debug' ? 'bg-rwv-panel text-yellow-400 shadow border border-yellow-400/20' : 'text-gray-500 hover:text-yellow-400/70'}`}
+                                onClick={() => setViewTab('health')}
+                                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition ${viewTab === 'health' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
                             >
-                                Ladění (Dev)
+                                Zdraví Dat
                             </button>
                         </div>
                     </div>
@@ -849,7 +785,7 @@
                                         <h2 className="text-4xl font-bold text-white tracking-tight">{currentLabel} <span className="text-gray-500 font-light">/ USD</span></h2>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs text-rwv-textMuted uppercase tracking-widest mb-1">Spotová Cena</p>
+                                        <p onClick={() => setViewTab('debug')} className="text-xs text-rwv-textMuted uppercase tracking-widest mb-1">Spotová Cena</p>
                                         <p className="text-4xl font-sans font-semibold text-white">${spotPrice.toFixed(2)}</p>
                                     </div>
                                 </header>
@@ -858,8 +794,41 @@
                             </div>
                         ) : viewTab === 'simulation' ? (
                             <MathSimulationTab />
+                        ) : viewTab === 'health' ? (
+                            // Data Health Tab
+                            <div className="flex-1 p-10 overflow-y-auto bg-rwv-bg font-sans">
+                                <div className="max-w-4xl mx-auto">
+                                    <h2 className="text-3xl font-bold text-white mb-2 border-b border-rwv-border pb-4">Stav Datového Toku</h2>
+                                    
+                                    {healthData ? (
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+                                            {Object.entries(healthData).map(([category, metrics]) => (
+                                                <div key={category} className="bg-rwv-panel p-6 rounded-xl border border-rwv-border shadow-xl">
+                                                    <h4 className="text-xs font-bold uppercase text-rwv-textMuted mb-4 tracking-widest border-b border-rwv-border pb-2">
+                                                        {TRANSLATIONS[category] || category.replace('_', ' ')}
+                                                    </h4>
+                                                    <ul className="space-y-3">
+                                                        {Object.entries(metrics).map(([key, info]) => (
+                                                            <li key={key} className="flex justify-between items-center text-sm">
+                                                                <span className="text-gray-300" title={TRANSLATIONS[key] || key}>
+                                                                    {TRANSLATIONS[key] || key.replace('_', ' ')}
+                                                                </span>
+                                                                <span className={`font-sans font-semibold text-xs px-2 py-1 rounded ${info.status.includes('OK') ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
+                                                                    {info.status}
+                                                                </span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="mt-8 text-gray-500 font-semibold tracking-wide">Načítám stav datových zdrojů API...</div>
+                                    )}
+                                </div>
+                            </div>
                         ) : (
-                            // Debug/Dev Tab
+                            // Debug/Dev Tab (Hidden trigger)
                             <div className="flex-1 p-10 overflow-y-auto bg-rwv-bg font-sans">
                                 <div className="max-w-3xl mx-auto">
                                     <h2 className="text-3xl font-bold text-yellow-400 mb-2 border-b border-yellow-400/20 pb-4">Výstup pro vývojáře (Debug)</h2>
@@ -885,8 +854,6 @@
                                 </div>
                             </div>
                         )}
-
-                        <DataHealthWidget healthData={healthData} />
                     </div>
                 </div>
             );
