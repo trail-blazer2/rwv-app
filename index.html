@@ -1093,6 +1093,16 @@
             const handleSliderChange = (e, key) => {
                 setSliders(prev => ({ ...prev, [key]: parseFloat(e.target.value) }));
             };
+            
+            const handleResetToToday = () => {
+                const todayIndices = defaultPredictions?.[selectedCommodityId]?.indices;
+                if (!todayIndices) return;
+                setSliders({
+                    A_it: todayIndices.A,
+                    D_it: todayIndices.D,
+                    R_it: todayIndices.R
+                });
+            };
 
             // RENDER AUTH SCREEN
             if (!token) {
@@ -1196,7 +1206,16 @@
                                     <hr className="border-rwv-border" />
 
                                     <div>
-                                        <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-4">Živé Ladění Parametrů</h2>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest">Živé Ladění Parametrů</h2>
+                                            <button
+                                                onClick={handleResetToToday}
+                                                disabled={!defaultPredictions?.[selectedCommodityId]?.indices}
+                                                className="text-[10px] font-bold uppercase tracking-wider text-rwv-lime border border-rwv-lime/40 rounded px-2 py-1 hover:bg-rwv-lime/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                            >
+                                                Dnešní stav
+                                            </button>
+                                        </div>
                                         <div className="flex flex-col gap-6">
                                             <SidebarSlider title="Ekonomická Aktivita (A)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
                                             <SidebarSlider title="Intenzita Deficitu (D)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
