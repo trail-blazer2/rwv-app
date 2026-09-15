@@ -1088,7 +1088,7 @@
                 }, 400); 
 
                 return () => clearTimeout(timer);
-            }, [sliders, selectedCommodityId, token]);
+            }, [sliders, selectedCommodityId, token, defaultPredictions]);
 
             const handleSliderChange = (e, key) => {
                 setSliders(prev => ({ ...prev, [key]: parseFloat(e.target.value) }));
