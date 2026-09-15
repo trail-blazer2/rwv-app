@@ -15,9 +15,9 @@
                             bg: '#0B1011',       
                             panel: '#151E20',    
                             border: '#232E30',   
-                            lime: '#C6F34F',     /* Original bright accent */
-                            olive: '#758749',    /* Muted olive */
-                            darkolive: '#2c2d2a',
+                            lime: '#C6F34F',     /* Bright active accent */
+                            olive: '#758749',    /* Sidebar gradient to */
+                            darkolive: '#2c2d2a',/* Sidebar gradient from */
                             textMuted: '#6B8286' 
                         }
                     },
@@ -50,15 +50,14 @@
         ::-webkit-scrollbar-thumb { background: #232E30; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #3a4a4d; }
         
-        /* Range Slider Styling - Restored to Bright Lime */
+        /* Range Slider Styling - Olive Palette */
         input[type=range] { -webkit-appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             height: 14px; width: 14px;
             border-radius: 50%;
-            background: #C6F34F;
+            background: #758749;
             cursor: pointer; margin-top: -5px;
-            box-shadow: 0 0 10px rgba(198, 243, 79, 0.4);
             transition: transform 0.1s ease;
         }
         input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
@@ -121,7 +120,7 @@
 
         // --- CUSTOM CHART PLUGINS ---
         
-        // 1. Plugin to draw vertical lines ONLY inside the filled area
+        // 1. Double Density Vertical Lines under Fill
         const verticalUnderfillPlugin = {
             id: 'verticalUnderfill',
             beforeDatasetsDraw: (chart) => {
@@ -129,10 +128,11 @@
                 const meta = chart.getDatasetMeta(0);
                 if (!meta || !meta.data.length) return;
                 
-                const bottomY = chart.scales.y.bottom;
+                const topY = chart.chartArea.top;
+                const bottomY = chart.chartArea.bottom;
                 
                 ctx.save();
-                // Create a clipping mask matching the area under the curve
+                // Create clipping mask to strict boundary under the curve
                 ctx.beginPath();
                 ctx.moveTo(meta.data[0].x, bottomY);
                 meta.data.forEach(p => ctx.lineTo(p.x, p.y));
@@ -140,92 +140,167 @@
                 ctx.closePath();
                 ctx.clip();
                 
-                // Draw vertical lines every 30px
                 ctx.beginPath();
-                for (let x = chart.scales.x.left; x < chart.scales.x.right; x += 30) {
-                    ctx.moveTo(x, chart.scales.y.top);
+                // Doubled density: 15px interval instead of 30px
+                for (let x = chart.scales.x.left; x < chart.scales.x.right; x += 15) {
+                    ctx.moveTo(x, topY);
                     ctx.lineTo(x, bottomY);
                 }
-                ctx.strokeStyle = 'rgba(117, 135, 73, 0.08)'; // faint olive
+                ctx.strokeStyle = 'rgba(198, 243, 79, 0.05)'; 
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 ctx.restore();
             }
         };
 
-        // 2. Plugin for massive light cone and glowing segment
-        const crosshairGlowPlugin = {
-            id: 'crosshairGlow',
-            afterDraw: (chart) => {
-                if (chart.tooltip?._active?.length) {
-                    const activePoint = chart.tooltip._active[0];
-                    const ctx = chart.ctx;
-                    
-                    // tooltipPosition provides smooth interpolated coordinates during transit
-                    const { x, y } = activePoint.element.tooltipPosition();
-                    const topY = chart.scales.y.top;
-                    const bottomY = chart.scales.y.bottom;
-
-                    ctx.save();
-                    
-                    // Vertical Crosshair
-                    const gradY = ctx.createLinearGradient(0, topY, 0, bottomY);
-                    gradY.addColorStop(0, 'rgba(198, 243, 79, 0)');
-                    gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), 'rgba(198, 243, 79, 0.5)');
-                    gradY.addColorStop(1, 'rgba(198, 243, 79, 0)');
-
-                    ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x, bottomY);
-                    ctx.strokeStyle = gradY; ctx.lineWidth = 1; ctx.stroke();
-                    
-                    // Massive smooth gradient light cone
-                    const radGrad = ctx.createRadialGradient(x, y, 0, x, y, 200);
-                    radGrad.addColorStop(0, 'rgba(198, 243, 79, 0.25)'); // Bright inner core
-                    radGrad.addColorStop(1, 'rgba(198, 243, 79, 0)');    // Very soft fade
-                    
-                    ctx.beginPath();
-                    ctx.arc(x, y, 200, 0, 2 * Math.PI);
-                    ctx.fillStyle = radGrad;
-                    ctx.fill();
-
-                    // Igniting the graph line locally (drawing a bezier segment over the active point)
-                    const points = chart.getDatasetMeta(0).data;
-                    const index = activePoint.index;
-                    if (index > 0 && index < points.length - 1) {
-                        const prev = points[index - 1];
-                        const curr = points[index];
-                        const next = points[index + 1];
-                        
-                        ctx.beginPath();
-                        ctx.moveTo(prev.x, prev.y);
-                        // Trace native curve tension
-                        ctx.bezierCurveTo(prev.cp2x, prev.cp2y, curr.cp1x, curr.cp1y, curr.x, curr.y);
-                        ctx.bezierCurveTo(curr.cp2x, curr.cp2y, next.cp1x, next.cp1y, next.x, next.y);
-                        
-                        ctx.strokeStyle = '#C6F34F'; // Bright lime
-                        ctx.lineWidth = 4;
-                        ctx.shadowColor = '#C6F34F';
-                        ctx.shadowBlur = 15;
-                        ctx.stroke();
-                    }
-
-                    // Solid center dot
-                    ctx.beginPath();
-                    ctx.arc(x, y, 5, 0, 2 * Math.PI);
-                    ctx.fillStyle = '#C6F34F'; 
-                    ctx.shadowBlur = 10;
-                    ctx.fill();
-
-                    ctx.restore();
+        // 2. Continuous Bezier Interpolation, Color Shifting & Canvas Overlays
+        const continuousHoverPlugin = {
+            id: 'continuousHover',
+            afterEvent(chart, args) {
+                const e = args.event;
+                if (e.type === 'mousemove') {
+                    chart._mouseX = e.x;
+                    chart._isHovered = true;
+                } else if (e.type === 'mouseout') {
+                    chart._isHovered = false;
+                    window.dispatchEvent(new CustomEvent('chartMouseOut'));
                 }
+                chart.draw(); // Force redraw for smooth canvas tracking
+            },
+            beforeDatasetsDraw(chart) {
+                const ctx = chart.ctx;
+                const meta = chart.getDatasetMeta(0);
+                if (!meta || !meta.data.length) return;
+
+                // Color Shift: Base Lime -> Muted Dark Olive when hovered
+                const isHovered = chart._isHovered;
+                chart.data.datasets[0].borderColor = isHovered ? '#3a4722' : '#C6F34F';
+                
+                // Accurate gradient mapping to exact chart Area
+                const gradient = ctx.createLinearGradient(0, chart.chartArea.top, 0, chart.chartArea.bottom);
+                if (isHovered) {
+                    gradient.addColorStop(0, 'rgba(58, 71, 34, 0.3)'); 
+                    gradient.addColorStop(1, 'rgba(58, 71, 34, 0)');
+                } else {
+                    gradient.addColorStop(0, 'rgba(198, 243, 79, 0.3)'); 
+                    gradient.addColorStop(1, 'rgba(198, 243, 79, 0)');
+                }
+                chart.data.datasets[0].backgroundColor = gradient;
+            },
+            afterDraw(chart) {
+                if (!chart._isHovered || chart._mouseX === undefined) return;
+                
+                const meta = chart.getDatasetMeta(0);
+                const points = meta.data;
+                const mouseX = chart._mouseX;
+                
+                // Bounds check
+                if (mouseX < points[0].x || mouseX > points[points.length-1].x) {
+                    window.dispatchEvent(new CustomEvent('chartMouseOut'));
+                    return;
+                }
+                
+                // Find local bezier segment
+                let p0, p1;
+                for (let i = 0; i < points.length - 1; i++) {
+                    if (mouseX >= points[i].x && mouseX <= points[i+1].x) {
+                        p0 = points[i]; p1 = points[i+1]; break;
+                    }
+                }
+                if (!p0 || !p1) return;
+
+                // Mathematical Cubic Bezier Y Interpolation
+                const t = (mouseX - p0.x) / (p1.x - p0.x);
+                const y = Math.pow(1-t, 3)*p0.y + 3*Math.pow(1-t, 2)*t*p0.cp2y + 3*(1-t)*Math.pow(t, 2)*p1.cp1y + Math.pow(t, 3)*p1.y;
+                
+                const ctx = chart.ctx;
+                const topY = chart.scales.y.top;
+                const bottomY = chart.scales.y.bottom;
+                const leftX = chart.scales.x.left;
+                const rightX = chart.scales.x.right;
+
+                ctx.save();
+                
+                // Ignited Lime Line Segment (Overwrites the muted dark base line)
+                ctx.beginPath();
+                ctx.moveTo(p0.x, p0.y);
+                ctx.bezierCurveTo(p0.cp2x, p0.cp2y, p1.cp1x, p1.cp1y, p1.x, p1.y);
+                ctx.strokeStyle = '#C6F34F'; 
+                ctx.lineWidth = 3;
+                ctx.shadowColor = '#C6F34F';
+                ctx.shadowBlur = 10;
+                ctx.stroke();
+
+                // Fading Crosshairs
+                const gradY = ctx.createLinearGradient(0, topY, 0, bottomY);
+                gradY.addColorStop(0, 'rgba(198, 243, 79, 0)');
+                gradY.addColorStop(Math.max(0, Math.min(1, (y - topY) / (bottomY - topY))), 'rgba(198, 243, 79, 0.6)');
+                gradY.addColorStop(1, 'rgba(198, 243, 79, 0)');
+
+                const gradX = ctx.createLinearGradient(leftX, 0, rightX, 0);
+                gradX.addColorStop(0, 'rgba(198, 243, 79, 0)');
+                gradX.addColorStop(Math.max(0, Math.min(1, (mouseX - leftX) / (rightX - leftX))), 'rgba(198, 243, 79, 0.6)');
+                gradX.addColorStop(1, 'rgba(198, 243, 79, 0)');
+
+                ctx.beginPath(); ctx.moveTo(mouseX, topY); ctx.lineTo(mouseX, bottomY);
+                ctx.strokeStyle = gradY; ctx.lineWidth = 1; ctx.stroke();
+
+                ctx.beginPath(); ctx.moveTo(leftX, y); ctx.lineTo(rightX, y);
+                ctx.strokeStyle = gradX; ctx.lineWidth = 1; ctx.stroke();
+
+                // Exact Center Point Ring
+                ctx.beginPath();
+                ctx.arc(mouseX, y, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = '#0B1011';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#C6F34F';
+                ctx.shadowBlur = 15;
+                ctx.stroke();
+
+                ctx.restore();
+
+                // Broadcast interpolated coordinates to HTML Light Cone
+                window.dispatchEvent(new CustomEvent('chartHover', { detail: { x: mouseX, y: y }}));
             }
         };
-        Chart.register(verticalUnderfillPlugin, crosshairGlowPlugin);
+        Chart.register(verticalUnderfillPlugin, continuousHoverPlugin);
 
         // --- DASHBOARD CHART COMPONENT ---
         function ProjectionChart({ data, commodityLabel, isSimulating }) {
+            const containerRef = useRef(null);
             const canvasRef = useRef(null);
             const chartInstanceRef = useRef(null);
+            const coneRef = useRef(null);
 
+            // Light Cone Event Listeners
+            useEffect(() => {
+                const handleHover = (e) => {
+                    if (coneRef.current && containerRef.current) {
+                        const rect = containerRef.current.getBoundingClientRect();
+                        // Adjust coordinates to be relative to the outer container padding
+                        const x = e.detail.x + 24; // 24px is p-6
+                        const y = e.detail.y + 24;
+                        
+                        coneRef.current.style.opacity = 1;
+                        coneRef.current.style.transform = `translate(calc(${x}px - 50%), calc(${y}px - 50%)) scale(1)`;
+                    }
+                };
+                const handleMouseOut = () => {
+                    if (coneRef.current) {
+                        coneRef.current.style.opacity = 0;
+                        coneRef.current.style.transform = `translate(calc(${chartInstanceRef.current?._mouseX || 0}px - 50%), calc(50%)) scale(0.8)`;
+                    }
+                };
+                window.addEventListener('chartHover', handleHover);
+                window.addEventListener('chartMouseOut', handleMouseOut);
+                return () => {
+                    window.removeEventListener('chartHover', handleHover);
+                    window.removeEventListener('chartMouseOut', handleMouseOut);
+                };
+            }, []);
+
+            // Chart Initialization & Data Morphing
             useEffect(() => {
                 if (!canvasRef.current || !data || data.length === 0) return;
 
@@ -235,11 +310,6 @@
                 if (!chartInstanceRef.current) {
                     const ctx = canvasRef.current.getContext('2d');
                     
-                    // Base Olive Gradient for fill
-                    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-                    gradient.addColorStop(0, 'rgba(117, 135, 73, 0.4)'); 
-                    gradient.addColorStop(1, 'rgba(117, 135, 73, 0)');
-
                     chartInstanceRef.current = new Chart(ctx, {
                         type: 'line',
                         data: {
@@ -247,12 +317,11 @@
                             datasets: [{
                                 label: `Predikce`,
                                 data: prices,
-                                borderColor: '#758749', // Olive line
-                                backgroundColor: gradient,
+                                borderColor: '#C6F34F', // Base Lime
                                 borderWidth: 2,
                                 tension: 0.4, 
                                 pointRadius: 0, 
-                                pointHoverRadius: 0, 
+                                pointHoverRadius: 0, // Points handled mathematically
                                 fill: true,
                             }]
                         },
@@ -260,17 +329,10 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             animation: { duration: 600, easing: 'easeOutQuart' },
-                            // Smooth in-out easing for hover tracking
-                            hover: { animationDuration: 400 },
                             interaction: { intersect: false, mode: 'index' },
                             plugins: {
                                 legend: { display: false },
-                                tooltip: {
-                                    backgroundColor: '#151E20', titleColor: '#6B8286',
-                                    bodyColor: '#C6F34F', borderColor: '#232E30',
-                                    borderWidth: 1, padding: 12, displayColors: false,
-                                    animation: { duration: 300, easing: 'easeInOutQuad' } 
-                                }
+                                tooltip: { enabled: false } // We use the mathematical custom overlay
                             },
                             scales: {
                                 x: { ticks: { color: '#6B8286', font: { size: 11, family: 'system-ui' } }, grid: { display: false } },
@@ -290,8 +352,23 @@
             }, []);
 
             return (
-                <div className="relative w-full h-[500px] bg-rwv-panel p-6 rounded-2xl border border-rwv-border shadow-2xl flex-1 flex flex-col">
-                    <div className="flex justify-between items-center mb-4 z-10">
+                <div ref={containerRef} className="relative w-full h-[500px] bg-rwv-panel p-6 rounded-2xl border border-rwv-border shadow-2xl flex-1 flex flex-col overflow-hidden">
+                    
+                    {/* Massive Ambient Background Light */}
+                    <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
+
+                    {/* Overflowing Mathematical Light Cone */}
+                    <div 
+                        ref={coneRef}
+                        className="absolute w-[600px] h-[600px] rounded-full pointer-events-none z-10 transition-all duration-200 ease-out"
+                        style={{
+                            background: 'radial-gradient(circle, rgba(198,243,79,0.12) 0%, rgba(198,243,79,0) 60%)',
+                            opacity: 0, top: 0, left: 0,
+                            transform: 'translate(-50%, -50%) scale(0.8)'
+                        }}
+                    ></div>
+
+                    <div className="flex justify-between items-center mb-4 z-20">
                         <h3 className="text-lg font-bold text-white tracking-wide">Trajektorie Monte Carlo</h3>
                         
                         <div className="h-6 flex items-center">
@@ -308,7 +385,7 @@
                         </div>
                     </div>
                     
-                    <div className="relative flex-1 w-full">
+                    <div className="relative flex-1 w-full z-20">
                         <canvas ref={canvasRef}></canvas>
                     </div>
                 </div>
@@ -456,7 +533,7 @@
                     </div>
                     <div className="h-44 bg-rwv-panel border border-t-0 border-rwv-border mx-6 mb-6 rounded-b-2xl p-6 flex flex-col shrink-0 transition-all duration-300 shadow-2xl">
                         <div className="flex items-center gap-3 mb-2">
-                            <div className={`w-2 h-2 rounded-full ${phase > 0 ? 'bg-rwv-lime animate-pulse' : 'bg-gray-600'}`}></div>
+                            <div className={`w-2 h-2 rounded-full ${phase > 0 ? 'bg-rwv-lime animate-pulse shadow-[0_0_8px_#C6F34F]' : 'bg-gray-600'}`}></div>
                             <h3 className="text-rwv-lime font-sans font-bold uppercase tracking-widest text-sm">{panelData[phase].title}</h3>
                         </div>
                         <p className="text-gray-400 text-xs mb-5 font-sans ml-5">{panelData[phase].desc}</p>
@@ -713,9 +790,9 @@
                                     <div>
                                         <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-4">Živé Ladění Parametrů</h2>
                                         <div className="flex flex-col gap-6">
-                                            <SidebarSlider title="Ekonomická Aktivita (A)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
-                                            <SidebarSlider title="Intenzita Deficitu (D)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
-                                            <SidebarSlider title="Systémové Riziko (R)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
+                                            <SidebarSlider title="Ekonomická Aktivita (A_it)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
+                                            <SidebarSlider title="Intenzita Deficitu (D_it)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
+                                            <SidebarSlider title="Systémové Riziko (R_it)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
                                         </div>
                                     </div>
                                 </div>
@@ -783,7 +860,7 @@
                 <div className="flex flex-col">
                     <div className="flex justify-between items-center mb-2">
                         <label className="text-xs font-semibold text-gray-300">{title}</label>
-                        <span className="font-sans font-semibold text-xs text-rwv-lime bg-rwv-lime/10 px-2 py-0.5 rounded border border-rwv-lime/30">
+                        <span className="font-sans font-semibold text-xs text-rwv-olive bg-rwv-olive/10 px-2 py-0.5 rounded border border-rwv-olive/30">
                             {value.toFixed(2)}
                         </span>
                     </div>
