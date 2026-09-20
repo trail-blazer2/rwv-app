@@ -255,13 +255,10 @@
             net_migration: "Čistá migrace", dxy: "Dolarový index (DXY)"
         };
 
-        const INITIAL_DUMMY_CURVE = [
-            { day: 0, price: 80 },
-            ...Array.from({length: 27}, (_, i) => ({
-                day: (i + 1) * 5,
-                price: 80 + Math.sin(i / 4) * 2 + (i * 0.2)
-            }))
-        ];
+        const INITIAL_DUMMY_CURVE = Array.from({length: 28}, (_, i) => ({
+            day: i * 5,
+            price: +(80 + Math.sin(i / 4) * 2 + (i * 0.2)).toFixed(2)
+        }));
 
         // --- PURE CANVAS CHART PLUGINS ---
         
