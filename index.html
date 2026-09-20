@@ -473,11 +473,7 @@
             useEffect(() => {
                 if (!canvasRef.current || !data || data.length === 0) return;
 
-                const chartPoints = (spotPrice && data[0]?.day !== 0)
-                    ? [{ day: 0, price: spotPrice }, ...data]
-                    : data;
-
-                const labels = data.map(d => `+${d.day} dní`);
+                const labels = data.map(d => d.day === 0 ? "Dnes" : `+${d.day} dní`);
                 const prices = data.map(d => d.price);
 
                 if (!chartInstanceRef.current) {
@@ -1140,6 +1136,10 @@
             const spotPrice = defaultPredictions?.[selectedCommodityId]?.spot_price || 0.00;
             const currentLabel = COMMODITIES.find(c => c.id === selectedCommodityId)?.label || selectedCommodityId;
 
+            const displayChartData = (chartData && chartData.length > 0 && chartData[0].day !== 0 && spotPrice > 0)
+                ? [{ day: 0, price: spotPrice }, ...chartData]
+                : chartData;
+
             return (
                 <div className="flex flex-col h-screen md:h-screen overflow-y-auto md:overflow-hidden animate-fade-in rwv-mobile-scroll-shell">
                     
@@ -1253,8 +1253,7 @@
                                     </div>
                                 </header>
                                 <ProjectionChart 
-                                    data={chartData} 
-                                    spotPrice={spotPrice}
+                                    data={displayChartData} 
                                     commodityLabel={currentLabel} 
                                     isSimulating={isSimulating || !defaultPredictions} 
                                 />
