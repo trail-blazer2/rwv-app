@@ -485,6 +485,7 @@
         // --- DASHBOARD CHART COMPONENT ---
         function ProjectionChart({ data, commodityLabel, isSimulating }) {
             const canvasRef = useRef(null);
+            const chartInstanceRef = useRef(null);
             const [showBand, setShowBand] = useState(false);
 
             useEffect(() => {
