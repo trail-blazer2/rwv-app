@@ -464,7 +464,7 @@
             id: 'rwvBand',
             beforeDatasetsDraw: (chart) => {
                 const b = chart.canvas._rwv_band;
-                if (!b || !chart.scales.x || !chart.scales.y) return;
+                if (!b || !chart.canvas._rwv_show || !chart.scales.x || !chart.scales.y) return;
                 const xs = chart.scales.x, ys = chart.scales.y, ctx = chart.ctx;
                 ctx.save();
                 ctx.beginPath(); ctx.rect(chart.chartArea.left, chart.chartArea.top, chart.chartArea.right - chart.chartArea.left, chart.chartArea.bottom - chart.chartArea.top); ctx.clip();
@@ -485,7 +485,7 @@
         // --- DASHBOARD CHART COMPONENT ---
         function ProjectionChart({ data, commodityLabel, isSimulating }) {
             const canvasRef = useRef(null);
-            const chartInstanceRef = useRef(null);
+            const [showBand, setShowBand] = useState(false);
 
             useEffect(() => {
                 if (!canvasRef.current || !data || data.length === 0) return;
@@ -494,9 +494,10 @@
                 const prices = data.map(d => d.price);
                 const lows = data.map(d => d.low ?? d.price);
                 const highs = data.map(d => d.high ?? d.price);
-                const lo = Math.min(...prices), hi = Math.max(...prices);
+                const lo = showBand ? Math.min(...lows) : Math.min(...prices), hi = showBand ? Math.max(...highs) : Math.max(...prices);
                 const pad = (hi - lo) * 0.04 || 1;
                 canvasRef.current._rwv_band = { low: lows, high: highs };
+                canvasRef.current._rwv_show = showBand;
 
                 if (!chartInstanceRef.current) {
                     const ctx = canvasRef.current.getContext('2d');
@@ -557,7 +558,7 @@
                     chartInstanceRef.current.data.datasets[0].data = prices;
                     chartInstanceRef.current.update(); 
                 }
-            }, [data, commodityLabel]);
+            }, [data, commodityLabel, showBand]);
 
             useEffect(() => {
                 return () => { if (chartInstanceRef.current) chartInstanceRef.current.destroy(); }
@@ -571,6 +572,9 @@
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-4 z-20">
                         <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie">Cenová Trajektorie · střední scénář a pásmo 80 %</h3>
                         
+                        <button onClick={() => setShowBand(!showBand)} className="text-[10px] md:text-xs font-bold uppercase tracking-wider border border-rwv-border rounded px-3 py-1 text-rwv-textMuted hover:text-white transition">
+                            {showBand ? 'Skrýt pásmo 80 %' : 'Zobrazit pásmo 80 %'}
+                        </button>
                         <div className="h-6 flex items-center">
                             {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
                                 <span className="text-rwv-lime text-[10px] md:text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
