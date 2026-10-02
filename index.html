@@ -460,7 +460,26 @@
                 ctx.restore();
             }
         };
-        Chart.register(verticalUnderfillPlugin, advancedHoverPlugin);
+        const rangeBandPlugin = {
+            id: 'rwvBand',
+            beforeDatasetsDraw: (chart) => {
+                const b = chart.canvas._rwv_band;
+                if (!b || !chart.scales.x || !chart.scales.y) return;
+                const xs = chart.scales.x, ys = chart.scales.y, ctx = chart.ctx;
+                ctx.save();
+                ctx.beginPath();
+                b.high.forEach((v, i) => {
+                    const x = xs.getPixelForValue(i), y = ys.getPixelForValue(v);
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
+                for (let i = b.low.length - 1; i >= 0; i--) ctx.lineTo(xs.getPixelForValue(i), ys.getPixelForValue(b.low[i]));
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(198, 243, 79, 0.07)'; ctx.fill();
+                ctx.strokeStyle = 'rgba(198, 243, 79, 0.25)'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.restore();
+            }
+        };
+        Chart.register(verticalUnderfillPlugin, advancedHoverPlugin, rangeBandPlugin);
 
         // --- DASHBOARD CHART COMPONENT ---
         function ProjectionChart({ data, commodityLabel, isSimulating }) {
@@ -472,6 +491,11 @@
 
                 const labels = data.map(d => d.day === 0 ? "Dnes" : `+${d.day} dní`);
                 const prices = data.map(d => d.price);
+                const lows = data.map(d => d.low ?? d.price);
+                const highs = data.map(d => d.high ?? d.price);
+                const lo = Math.min(...lows), hi = Math.max(...highs);
+                const pad = (hi - lo) * 0.04 || 1;
+                canvasRef.current._rwv_band = { low: lows, high: highs };
 
                 if (!chartInstanceRef.current) {
                     const ctx = canvasRef.current.getContext('2d');
@@ -510,17 +534,24 @@
                                     animation: { duration: 400, easing: 'easeOutQuart' }, 
                                     callbacks: {
                                         title: (ctx) => ctx[0].label,
-                                        label: (ctx) => '$' + ctx.parsed.y.toFixed(2)
+                                        label: (ctx) => {
+                                            const b = ctx.chart.canvas._rwv_band;
+                                            const out = ['$' + ctx.parsed.y.toFixed(2)];
+                                            if (b && ctx.dataIndex > 0) out.push('Pásmo 80 %: $' + b.low[ctx.dataIndex].toFixed(2) + ' – $' + b.high[ctx.dataIndex].toFixed(2));
+                                            return out;
+                                        }
                                     }
                                 }
                             },
                             scales: {
                                 x: { ticks: { color: '#6B8286', font: { size: 11, family: 'system-ui' } }, grid: { display: false } },
-                                y: { ticks: { color: '#6B8286', font: { size: 11, family: 'system-ui' } }, grid: { display: false } }
+                                y: { min: lo - pad, max: hi + pad, ticks: { color: '#6B8286', font: { size: 11, family: 'system-ui' } }, grid: { display: false } }
                             }
                         }
                     });
                 } else {
+                    chartInstanceRef.current.options.scales.y.min = lo - pad;
+                    chartInstanceRef.current.options.scales.y.max = hi + pad;
                     chartInstanceRef.current.data.labels = labels;
                     chartInstanceRef.current.data.datasets[0].data = prices;
                     chartInstanceRef.current.update(); 
@@ -537,7 +568,7 @@
                     <div className="absolute top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-4 z-20">
-                        <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie">Cenová Trajektorie</h3>
+                        <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie">Cenová Trajektorie · střední scénář a pásmo 80 %</h3>
                         
                         <div className="h-6 flex items-center">
                             {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
