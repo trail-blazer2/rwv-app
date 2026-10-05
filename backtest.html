@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="cs"><head><meta charset="utf-8"><title>RWV – Backtest</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{background:#0b0d10;color:#e6e6e6;font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:1000px;margin:auto}
+h1{font-size:22px}h2{font-size:16px;margin-top:28px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid #2a2f36;padding:6px 8px;text-align:right}th:first-child,td:first-child{text-align:left}
+.note{background:#14181d;border:1px solid #2a2f36;border-radius:8px;padding:12px;font-size:13px;color:#b8bec6}
+select{background:#14181d;color:#e6e6e6;border:1px solid #2a2f36;padding:4px 8px;margin-right:8px}
+.good{color:#c6f34f}.bad{color:#ff8a7a}
+</style></head><body>
+<h1>Backtest: ověření na neviděných datech</h1>
+<div class="note">Každá předpověď byla vytvořena pouze z dat známých v den předpovědi (walk-forward). Testovací rok od října 2025 zůstává nedotčen.
+Pásmo 80 % má v budoucnu zahrnout skutečnou cenu zhruba v 80 % případů. Střední předpověď ukazujeme pro úplnost; její výhoda oproti „beze změny“ je malá a nesmí být vydávána za obchodní signál.</div>
+<h2>Souhrn podle komodity</h2>
+<div><select id="h"><option value="4">4 týdny</option><option value="13">13 týdnů</option></select></div>
+<table id="sum"></table>
+<h2>Jednotlivé předpovědi</h2>
+<div><select id="c"></select></div>
+<table id="rows"></table>
+<script>
+let D=[];
+fetch('backtest_results.csv').then(r=>r.text()).then(t=>{
+  const L=t.trim().split('\n'),H=L[0].split(',');
+  D=L.slice(1).map(l=>{const v=l.split(',');const o={};H.forEach((k,i)=>o[k]=isNaN(+v[i])||k=='date'||k=='commodity'?v[i]:+v[i]);return o});
+  const cs=[...new Set(D.map(d=>d.commodity))];
+  document.getElementById('c').innerHTML=cs.map(c=>`<option>${c}</option>`).join('');
+  document.getElementById('h').onchange=draw;document.getElementById('c').onchange=draw;draw();
+});
+function draw(){
+  const h=+document.getElementById('h').value,c=document.getElementById('c').value;
+  const S=D.filter(d=>d.horizon_weeks==h);const cs=[...new Set(S.map(d=>d.commodity))];
+  let html='<tr><th>Komodita</th><th>Počet</th><th>Chyba modelu</th><th>Chyba „beze změny“</th><th>Poměr</th><th>Pokrytí pásma 80 %</th></tr>';
+  let tm=0,tn=0,tc=0,tt=0;
+  cs.forEach(k=>{const s=S.filter(d=>d.commodity==k);
+    const em=s.reduce((a,d)=>a+Math.abs(d.pred_pct-d.actual_pct),0)/s.length, en=s.reduce((a,d)=>a+Math.abs(d.actual_pct),0)/s.length;
+    const cov=s.filter(d=>d.actual_pct>=d.low_pct&&d.actual_pct<=d.high_pct).length;
+    tm+=em;tn+=en;tc+=cov;tt+=s.length;
+    html+=`<tr><td>${k}</td><td>${s.length}</td><td>${em.toFixed(2)} %</td><td>${en.toFixed(2)} %</td><td class="${em<en?'good':'bad'}">${(em/en).toFixed(3)}</td><td>${(100*cov/s.length).toFixed(1)} %</td></tr>`});
+  html+=`<tr><td><b>Průměr</b></td><td>${tt}</td><td>${(tm/cs.length).toFixed(2)} %</td><td>${(tn/cs.length).toFixed(2)} %</td><td>${(tm/tn).toFixed(3)}</td><td><b>${(100*tc/tt).toFixed(1)} %</b></td></tr>`;
+  document.getElementById('sum').innerHTML=html;
+  const R=S.filter(d=>d.commodity==c);
+  document.getElementById('rows').innerHTML='<tr><th>Datum</th><th>Předpověď</th><th>Skutečnost</th><th>Pásmo 80 %</th><th>V pásmu</th></tr>'+
+    R.map(d=>{const ok=d.actual_pct>=d.low_pct&&d.actual_pct<=d.high_pct;
+      return `<tr><td>${d.date}</td><td>${d.pred_pct.toFixed(2)} %</td><td>${d.actual_pct.toFixed(2)} %</td><td>${d.low_pct.toFixed(1)} … ${d.high_pct.toFixed(1)} %</td><td class="${ok?'good':'bad'}">${ok?'ano':'ne'}</td></tr>`}).join('');
+}
+</script></body></html>
