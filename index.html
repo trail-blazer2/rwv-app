@@ -1018,6 +1018,364 @@
             );
         }
 
+        // --- MAIN APP COMPONENT ---
+        function App() {
+            const [token, setToken] = useState(localStorage.getItem('rwv_token'));
+            
+            const [appReady, setAppReady] = useState(false);
+            const [loadProgress, setLoadProgress] = useState(0);
+
+            const [viewTab, setViewTab] = useState('dashboard'); 
+            const [selectedCommodityId, setSelectedCommodityId] = useState("Gold");
+            const [defaultPredictions, setDefaultPredictions] = useState(null);
+            
+            const [chartData, setChartData] = useState(INITIAL_DUMMY_CURVE);
+            const [healthData, setHealthData] = useState(null);
+            
+            const [sliders, setSliders] = useState({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
+            const [isSimulating, setIsSimulating] = useState(false);
+            const [error, setError] = useState(null);
+
+            const handleLogout = () => {
+                localStorage.removeItem('rwv_token');
+                setToken(null);
+            };
+
+            const getAuthHeaders = () => ({
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            });
+
+            const handleApiError = (res) => {
+                if (res.status === 401) {
+                    handleLogout();
+                    throw new Error("Relace vypršela. Přihlaste se znovu.");
+                }
+                return res.json();
+            };
+
+            // Fast Loading Animation
+            useEffect(() => {
+                if (!token) return; // Don't run app load animation if on auth screen
+                const interval = setInterval(() => {
+                    setLoadProgress(p => {
+                        if (p >= 100) {
+                            clearInterval(interval);
+                            setTimeout(() => setAppReady(true), 200);
+                            return 100;
+                        }
+                        return p + 6; 
+                    });
+                }, 40); 
+                return () => clearInterval(interval);
+            }, [token]);
+
+            // Background Data Fetching (Requires Auth)
+            useEffect(() => {
+                if (!token) return;
+                
+                Promise.all([
+                    fetch(`${API_BASE}/api/v1/predict`, { headers: getAuthHeaders() }).then(handleApiError),
+                    fetch(`${API_BASE}/api/v1/data-status`, { headers: getAuthHeaders() }).then(handleApiError)
+                ])
+                .then(([predictRes, healthRes]) => {
+                    if (predictRes.status === "success" && predictRes.data) {
+                        setDefaultPredictions(predictRes.data);
+                        setHealthData(healthRes.indices);
+                    } else {
+                        setError("Cache jádra čeká. Spusťte výpočty.");
+                    }
+                })
+                .catch(err => {
+                    if(err.message !== "Relace vypršela. Přihlaste se znovu.") {
+                        setError("Chyba připojení k RWV API.");
+                    }
+                });
+            }, [token]);
+
+            // Set Chart when Commodity Changes
+            useEffect(() => {
+                if (defaultPredictions && defaultPredictions[selectedCommodityId]) {
+                    const data = defaultPredictions[selectedCommodityId];
+                    setChartData(data.projection_curve);
+                }
+            }, [selectedCommodityId, defaultPredictions]);
+
+            // Debounced Custom Slider Simulation
+            useEffect(() => {
+                if (!defaultPredictions || !token) return;
+                const timer = setTimeout(() => {
+                    setIsSimulating(true);
+                    fetch(`${API_BASE}/api/v1/simulate-custom`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({
+                            commodity: selectedCommodityId,
+                            A_it: parseFloat(sliders.A_it),
+                            D_it: parseFloat(sliders.D_it),
+                            R_it: parseFloat(sliders.R_it)
+                        })
+                    })
+                    .then(handleApiError)
+                    .then(data => {
+                        if(data.status === "success") { setChartData(data.projection_curve); }
+                        setIsSimulating(false);
+                    })
+                    .catch(err => {
+                        console.error("Simulation failed", err);
+                        setIsSimulating(false);
+                    });
+                }, 400); 
+
+                return () => clearTimeout(timer);
+            }, [sliders, selectedCommodityId, token, defaultPredictions]);
+
+            const handleSliderChange = (e, key) => {
+                setSliders(prev => ({ ...prev, [key]: parseFloat(e.target.value) }));
+            };
+            
+            const handleResetToToday = () => {
+                const todayIndices = defaultPredictions?.[selectedCommodityId]?.indices;
+                if (!todayIndices) return;
+                setSliders({
+                    A_it: todayIndices.A,
+                    D_it: todayIndices.D,
+                    R_it: todayIndices.R
+                });
+            };
+
+            // RENDER AUTH SCREEN
+            if (!token) {
+                return <AuthScreen onAuth={(t) => {
+                    localStorage.setItem('rwv_token', t);
+                    setToken(t);
+                }} />;
+            }
+
+            // LOADING SCREEN RENDER
+            if (!appReady) {
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg px-4">
+                        <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" className="mb-8 h-12 object-contain opacity-80" />
+                        <div className="w-64 h-2 bg-rwv-panel rounded-full overflow-hidden border border-rwv-border">
+                            <div className="h-full bg-rwv-lime transition-all duration-75 ease-linear" style={{ width: `${loadProgress}%` }}></div>
+                        </div>
+                        <p className="mt-4 text-[10px] font-sans font-medium text-rwv-textMuted uppercase tracking-widest text-center">Ověřuji spojení a načítám modely...</p>
+                    </div>
+                );
+            }
+
+            if (error) return <div className="flex items-center justify-center min-h-screen text-red-500 font-sans font-semibold px-6 text-center">{error}</div>;
+
+            const spotPrice = defaultPredictions?.[selectedCommodityId]?.spot_price || 0.00;
+            const currentLabel = COMMODITIES.find(c => c.id === selectedCommodityId)?.label || selectedCommodityId;
+
+            const displayChartData = (chartData && chartData.length > 0 && chartData[0].day !== 0 && spotPrice > 0)
+                ? [{ day: 0, price: spotPrice }, ...chartData]
+                : chartData;
+
+            return (
+                <div className="flex flex-col h-screen md:h-screen overflow-y-auto md:overflow-hidden animate-fade-in rwv-mobile-scroll-shell">
+                    
+                    {/* Top Global Navigation Bar */}
+                    <div className="min-h-[4rem] md:h-16 bg-rwv-panel border-b border-rwv-border flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0 px-4 md:px-6 py-3 md:py-0 shrink-0 z-30">
+                        <div className="flex items-center justify-between md:justify-start gap-4">
+                            <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-7 md:h-8 object-contain opacity-90" />
+                            {/* LOGOUT BUTTON (mobile position, next to logo) */}
+                            <button 
+                                onClick={handleLogout}
+                                className="md:hidden px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rwv-textMuted border border-rwv-border rounded hover:text-red-400 hover:border-red-900/50 hover:bg-red-900/20 transition"
+                            >
+                                Odhlásit
+                            </button>
+                        </div>
+                        
+                        <div className="flex gap-4 items-center">
+                            <div className="flex gap-1 md:gap-2 bg-rwv-bg p-1 rounded-lg border border-rwv-border overflow-x-auto w-full md:w-auto custom-scrollbar">
+                                <button 
+                                    onClick={() => setViewTab('dashboard')}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'dashboard' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Výstupní Matice
+                                </button>
+                                <button 
+                                    onClick={() => setViewTab('simulation')}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'simulation' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Matematický Model
+                                </button>
+                                <button 
+                                    onClick={() => setViewTab('health')}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'health' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Zdraví Dat
+                                </button>
+                                <button 
+                                    onClick={() => setViewTab('value')}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'value' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Hodnota
+                                </button>
+                                <button 
+                                    onClick={() => setViewTab('risk')}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'risk' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Rizikový Panel
+                                </button>
+                            </div>
+                            {/* LOGOUT BUTTON (desktop position) */}
+                            <button 
+                                onClick={handleLogout}
+                                className="hidden md:inline-block px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rwv-textMuted border border-rwv-border rounded hover:text-red-400 hover:border-red-900/50 hover:bg-red-900/20 transition"
+                            >
+                                Odhlásit
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Main Workspace Split */}
+                    <div className="flex-1 flex flex-col md:flex-row overflow-visible md:overflow-hidden">
+                        
+                        {/* Persistent Sidebar */}
+                        {viewTab === 'dashboard' && (
+                            <div className="w-full md:w-[340px] bg-rwv-panel border-b md:border-b-0 md:border-r border-rwv-border flex flex-col shadow-xl z-20 shrink-0 max-h-[50vh] md:max-h-none">
+                                <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col gap-6 md:gap-8">
+                                    <div>
+                                        <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-3">Cílové Aktivum</h2>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {COMMODITIES.map(c => (
+                                                <button
+                                                    key={c.id}
+                                                    onClick={() => setSelectedCommodityId(c.id)}
+                                                    className={`w-full text-center px-2 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 border ${
+                                                        selectedCommodityId === c.id 
+                                                        ? 'bg-gradient-to-br from-rwv-darkolive to-rwv-olive text-white border-transparent' 
+                                                        : 'bg-rwv-bg text-gray-400 border-rwv-border hover:border-rwv-textMuted hover:text-white'
+                                                    }`}
+                                                >
+                                                    {c.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <hr className="border-rwv-border" />
+
+                                    <div>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest">Živé Ladění Parametrů</h2>
+                                            <button
+                                                onClick={handleResetToToday}
+                                                disabled={!defaultPredictions?.[selectedCommodityId]?.indices}
+                                                className="text-[10px] font-bold dnesnistav uppercase tracking-wider text-rwv-lime border border-rwv-lime/40 rounded px-2 py-1 hover:bg-rwv-lime/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                            >
+                                                Dnešní stav
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-col gap-6">
+                                            <SidebarSlider title="Ekonomická Aktivita (A)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
+                                            <SidebarSlider title="Intenzita Deficitu (D)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
+                                            <SidebarSlider title="Systémové Riziko (R)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Dynamic Main View */}
+                        {viewTab === 'dashboard' ? (
+                            <div className="flex-1 p-4 md:p-8 overflow-visible md:overflow-y-auto flex flex-col relative bg-rwv-bg">
+                                <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-3 md:gap-0 mb-6">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-rwv-textMuted text-sm font-medium">Trh /</span>
+                                            <span className="text-rwv-lime text-sm font-bold uppercase tracking-wider">{currentLabel}</span>
+                                        </div>
+                                        <h2 className="text-2xl md:text-4xl font-bold text-white tracking-tight">{currentLabel} <span className="text-gray-500 font-light">/ USD</span></h2>
+                                    </div>
+                                    <div className="text-left md:text-right">
+                                        <p onClick={() => setViewTab('debug')} className="text-xs text-rwv-textMuted uppercase tracking-widest mb-1">Spotová Cena</p>
+                                        <p className="text-2xl md:text-4xl font-sans font-semibold text-white">${spotPrice.toFixed(2)}</p>
+                                    </div>
+                                </header>
+                                <ProjectionChart 
+                                    data={displayChartData} 
+                                    commodityLabel={currentLabel} 
+                                    isSimulating={isSimulating || !defaultPredictions} 
+                                />
+                                <Phase3LockedFeatures />
+                            </div>
+                        ) : viewTab === 'simulation' ? (
+                            <MathSimulationTab />
+                        ) : viewTab === 'value' ? (
+                            <ValuePanel />
+                        ) : viewTab === 'risk' ? (
+                            <PortfolioRiskTab token={token} />
+                        ) : viewTab === 'health' ? (
+                            // Data Health Tab
+                            <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
+                                <div className="max-w-4xl mx-auto">
+                                    <h2 className="text-xl md:text-3xl font-bold text-white mb-2 border-b border-rwv-border pb-4">Stav Datového Toku</h2>
+                                    
+                                    {healthData ? (
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-6 md:mt-8">
+                                            {Object.entries(healthData).map(([category, metrics]) => (
+                                                <div key={category} className="bg-rwv-panel p-4 md:p-6 rounded-xl border border-rwv-border shadow-xl">
+                                                    <h4 className="text-xs font-bold uppercase text-rwv-textMuted mb-4 tracking-widest border-b border-rwv-border pb-2">
+                                                        {TRANSLATIONS[category] || category.replace('_', ' ')}
+                                                    </h4>
+                                                    <ul className="space-y-3">
+                                                        {Object.entries(metrics).map(([key, info]) => (
+                                                            <li key={key} className="flex justify-between items-center text-sm gap-2">
+                                                                <span className="text-gray-300" title={TRANSLATIONS[key] || key}>
+                                                                    {TRANSLATIONS[key] || key.replace('_', ' ')}
+                                                                </span>
+                                                                <span className={`font-sans font-semibold text-xs px-2 py-1 rounded shrink-0 ${info.status.includes('OK') ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
+                                                                    {info.status}
+                                                                </span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="mt-8 text-gray-500 font-semibold tracking-wide">Načítám stav datových zdrojů API...</div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            // Debug/Dev Tab (Hidden trigger)
+                            <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
+                                <div className="max-w-3xl mx-auto">
+                                    <h2 className="text-xl md:text-3xl font-bold text-yellow-400 mb-2 border-b border-yellow-400/20 pb-4">Výstup pro vývojáře (Debug)</h2>
+                                    <div className="mb-8 mt-6">
+                                        <span className="text-rwv-textMuted uppercase tracking-widest text-xs font-semibold">Aktivní datový tok komodity</span>
+                                        <div className="text-xl md:text-2xl text-white mt-1 font-semibold">{currentLabel} / USD</div>
+                                    </div>
+                                    <div className="bg-rwv-panel p-4 md:p-6 rounded-xl border border-rwv-border shadow-xl">
+                                        <h3 className="text-gray-300 text-sm font-bold mb-4 uppercase tracking-wider">Surová matice 27 kroků projekce</h3>
+                                        {chartData.length > 0 ? (
+                                            <ul className="space-y-2 text-sm">
+                                                {chartData.map((d, i) => (
+                                                    <li key={i} className="flex justify-between border-b border-rwv-border/50 pb-1 hover:bg-rwv-border/30 px-2 rounded transition">
+                                                        <span className="text-gray-500 font-semibold">Krok {i+1} <span className="text-gray-600">({d.day} dní)</span></span>
+                                                        <span className="text-rwv-lime font-bold">${d.price.toFixed(2)}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <span className="text-red-400 font-semibold">Matice je prázdná. Žádná data nebyla vypočítána.</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
         // --- VALUE PANEL ---
         function ValuePanel() {
             // Static, honest copy. Numbers match stages 10-13 + 15 + 16 (nothing invented).
