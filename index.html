@@ -1180,7 +1180,14 @@
                     {/* Top Global Navigation Bar */}
                     <div className="min-h-[4rem] md:h-16 bg-rwv-panel border-b border-rwv-border flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0 px-4 md:px-6 py-3 md:py-0 shrink-0 z-30">
                         <div className="flex items-center justify-between md:justify-start gap-4">
-                            <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-7 md:h-8 object-contain opacity-90" />
+                            <img 
+                                src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" 
+                                alt="Logo" 
+                                className="h-7 md:h-8 object-contain opacity-90 cursor-default" 
+                                onDoubleClick={() => setViewTab('value')}
+                                onContextMenu={(e) => { e.preventDefault(); setViewTab('risk'); }}
+                                title="."
+                            />
                             {/* LOGOUT BUTTON (mobile position, next to logo) */}
                             <button 
                                 onClick={handleLogout}
@@ -1209,18 +1216,6 @@
                                     className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'health' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
                                 >
                                     Zdraví Dat
-                                </button>
-                                <button 
-                                    onClick={() => setViewTab('value')}
-                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'value' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
-                                >
-                                    Hodnota
-                                </button>
-                                <button 
-                                    onClick={() => setViewTab('risk')}
-                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'risk' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
-                                >
-                                    Rizikový Panel
                                 </button>
                             </div>
                             {/* LOGOUT BUTTON (desktop position) */}
