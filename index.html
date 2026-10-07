@@ -1226,6 +1226,7 @@
         function App() {
             const [token, setToken] = useState(localStorage.getItem('rwv_token'));
             
+            const [apiLoaded, setApiLoaded] = useState(false);
             const [appReady, setAppReady] = useState(false);
             const [loadProgress, setLoadProgress] = useState(0);
 
@@ -1233,11 +1234,11 @@
             const [selectedCommodityId, setSelectedCommodityId] = useState("Gold");
             const [defaultPredictions, setDefaultPredictions] = useState(null);
             
-            const [chartData, setChartData] = useState(INITIAL_DUMMY_CURVE);
+            const [chartData, setChartData] = useState([]);
             const [healthData, setHealthData] = useState(null);
             
             const [sliders, setSliders] = useState({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
-            const [isSimulating, setIsSimulating] = useState(false);
+            const [isSimulating, setIsSimulating] = useState(true); // Start true for the micro-flash
             const [error, setError] = useState(null);
 
             const handleLogout = () => {
@@ -1258,26 +1259,34 @@
                 return res.json();
             };
 
-            // Fast Loading Animation
-            useEffect(() => {
-                if (!token) return; // Don't run app load animation if on auth screen
-                const interval = setInterval(() => {
-                    setLoadProgress(p => {
-                        if (p >= 100) {
-                            clearInterval(interval);
-                            setTimeout(() => setAppReady(true), 200);
-                            return 100;
-                        }
-                        return p + 6; 
-                    });
-                }, 40); 
-                return () => clearInterval(interval);
-            }, [token]);
-
-            // Background Data Fetching (Requires Auth)
+            // 1. FAST LOADING BAR (Syncs with API)
             useEffect(() => {
                 if (!token) return;
-                
+                const interval = setInterval(() => {
+                    setLoadProgress(p => {
+                        if (p < 90) return p + 15; // Very fast to 90%
+                        if (apiLoaded) return 100; // Snap to 100% when API completes
+                        return 90; // Hang safely at 90% if API is still loading
+                    });
+                }, 20); 
+                return () => clearInterval(interval);
+            }, [token, apiLoaded]);
+
+            // Reveal app and trigger micro-flash
+            useEffect(() => {
+                if (loadProgress >= 100) {
+                    const t = setTimeout(() => {
+                        setAppReady(true);
+                        // Keep the "PŘEPOČÍTÁVÁM SDE" text for exactly 150ms after UI appears
+                        setTimeout(() => setIsSimulating(false), 150); 
+                    }, 50);
+                    return () => clearTimeout(t);
+                }
+            }, [loadProgress]);
+
+            // 2. BACKGROUND DATA FETCHING
+            useEffect(() => {
+                if (!token) return;
                 Promise.all([
                     fetch(`${API_BASE}/api/v1/predict`, { headers: getAuthHeaders() }).then(handleApiError),
                     fetch(`${API_BASE}/api/v1/data-status`, { headers: getAuthHeaders() }).then(handleApiError)
@@ -1286,6 +1295,8 @@
                     if (predictRes.status === "success" && predictRes.data) {
                         setDefaultPredictions(predictRes.data);
                         setHealthData(healthRes.indices);
+                        setSliders({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
+                        setApiLoaded(true); // Tells loading bar to finish
                     } else {
                         setError("Cache jádra čeká. Spusťte výpočty.");
                     }
@@ -1294,19 +1305,20 @@
                     if(err.message !== "Relace vypršela. Přihlaste se znovu.") {
                         setError("Chyba připojení k RWV API.");
                     }
+                    setApiLoaded(true); // End loading screen even on error
                 });
             }, [token]);
 
-            // Set Chart when Commodity Changes
+            // 3. COMMODITY SWITCH
             useEffect(() => {
                 if (defaultPredictions && defaultPredictions[selectedCommodityId]) {
-                    const data = defaultPredictions[selectedCommodityId];
-                    setChartData(data.projection_curve);
+                    setIsSimulating(true); // Micro-flash on switch
+                    setSliders({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
+                    setTimeout(() => setIsSimulating(false), 150);
                 }
             }, [selectedCommodityId, defaultPredictions]);
 
-            // NO Debounced Custom Slider Simulation
-            // Instant Custom Slider Simulation via Trilinear Lookup Tensor
+            // 4. INSTANT CUSTOM SLIDER SIMULATION VIA TRILINEAR LOOKUP TENSOR
             useEffect(() => {
                 if (!defaultPredictions || !token) return;
                 const data = defaultPredictions[selectedCommodityId];
@@ -1314,11 +1326,8 @@
 
                 if (data.tensor) {
                     const { A_it, D_it, R_it } = sliders;
-                    
-                    // Helper to format float to dictionary key (e.g. 0.20)
                     const fmt = (v) => v.toFixed(2);
                     
-                    // 1. Find the boundaries of our 3D grid cell
                     const getIdx = (v) => Math.min(Math.floor(v / 0.2), 4);
                     const aI = getIdx(A_it), dI = getIdx(D_it), rI = getIdx(R_it);
                     
@@ -1326,12 +1335,10 @@
                     const D0 = dI * 0.2, D1 = D0 + 0.2;
                     const R0 = rI * 0.2, R1 = R0 + 0.2;
                     
-                    // 2. Calculate fractional distance inside the cell (0.0 to 1.0)
                     const wa = (A_it - A0) / 0.2;
                     const wd = (D_it - D0) / 0.2;
                     const wr = (R_it - R0) / 0.2;
 
-                    // 3. Define the 8 corners of the cell and their interpolation weights
                     const corners = [
                         { key: `${fmt(A0)}_${fmt(D0)}_${fmt(R0)}`, w: (1 - wa) * (1 - wd) * (1 - wr) },
                         { key: `${fmt(A1)}_${fmt(D0)}_${fmt(R0)}`, w: wa * (1 - wd) * (1 - wr) },
@@ -1343,7 +1350,6 @@
                         { key: `${fmt(A1)}_${fmt(D1)}_${fmt(R1)}`, w: wa * wd * wr }
                     ];
 
-                    // 4. Blend the 8 curves together based on exact slider position
                     let blendedCurve = new Array(28).fill(0);
                     let validCorners = 0;
 
@@ -1357,9 +1363,7 @@
                         }
                     });
 
-                    // Only update if we successfully mapped the grid
                     if (validCorners === 8) {
-                        // FIX: Restore the 80% bands by applying the default volatility ratio
                         const defaultCurve = data.projection_curve;
                         
                         const instantCurve = blendedCurve.map((price, i) => {
@@ -1375,7 +1379,6 @@
                             };
                         });
                         setChartData(instantCurve);
-                        setIsSimulating(false);
                     }
                 } else {
                     // Graceful fallback to API if tensor isn't generated yet
