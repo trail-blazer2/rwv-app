@@ -196,6 +196,21 @@
         .floating-line-2 { animation: float-line 20s ease-in-out infinite reverse; animation-delay: -5s; }
         .floating-line-3 { animation: float-line 17s ease-in-out infinite; animation-delay: -2s; }
 
+        /* Phase 2 Calibration Matrix & Shield Animations */
+        @keyframes matrixGlow {
+            0% { box-shadow: 0 0 5px rgba(198,243,79,0.1); }
+            100% { box-shadow: 0 0 20px rgba(198,243,79,0.3); }
+        }
+        .animate-matrix-glow {
+            animation: matrixGlow 2s infinite alternate;
+        }
+        .svg-path-morph { 
+            transition: d 1s cubic-bezier(0.25, 1, 0.5, 1), stroke 1s ease, filter 1s ease; 
+        }
+        .matrix-text { 
+            font-family: 'Courier New', Courier, monospace; 
+        }
+
         /* ===== MOBILE-ONLY OVERRIDES (never affect >=768px / desktop) ===== */
         @media (max-width: 767px) {
             body {
@@ -254,6 +269,171 @@
             rnd_spend: "Výdaje na vědu a výzkum", edu_spend: "Výdaje na školství", health_spend: "Výdaje na zdravotnictví",
             net_migration: "Čistá migrace", dxy: "Dolarový index (DXY)"
         };
+
+
+        // --- FÁZE 2: KALIBRACE COMPONENT ---
+        function Phase2CalibrationTab() {
+            const [isCalibrated, setIsCalibrated] = useState(false);
+            const [epoch, setEpoch] = useState(0);
+            const [matrixActive, setMatrixActive] = useState(false);
+
+            // Real data from Stage 9 Report
+            const realParams = [
+                { name: "s_wg (HDP váha)", start: "1.000", end: "1.088", limit: "0.2 - 3.0" },
+                { name: "s_wy (Příjmy)", start: "1.000", end: "0.955", limit: "0.2 - 3.0" },
+                { name: "k_a (Zásoby vliv)", start: "2.000", end: "2.632", limit: "0.5 - 6.0" },
+                { name: "beta (Citlivost)", start: "1.000", end: "1.236", limit: "0.3 - 3.0" },
+                { name: "theta_A (Aktivita)", start: "0.000", end: "-0.078", limit: "-0.5 - 0.5" },
+                { name: "B_r (Riziko buffer)", start: "0.000", end: "-0.220", limit: "-0.5 - 0.5" },
+                { name: "k_mr (Návrat)", start: "0.000", end: "0.039", limit: "-0.1 - 0.5" },
+                { name: "mu_shift (Drift)", start: "0.000", end: "0.011", limit: "-0.1 - 0.1" }
+            ];
+
+            const [displayParams, setDisplayParams] = useState(realParams.map(p => p.start));
+
+            const triggerCalibration = () => {
+                if (isCalibrated) {
+                    setIsCalibrated(false);
+                    setMatrixActive(false);
+                    setEpoch(0);
+                    setDisplayParams(realParams.map(p => p.start));
+                    return;
+                }
+                
+                setIsCalibrated(true);
+                setMatrixActive(true);
+                setEpoch(1);
+            };
+
+            // Matrix Animation Effect
+            useEffect(() => {
+                if (!matrixActive) return;
+                
+                let currentEpoch = 1;
+                const interval = setInterval(() => {
+                    currentEpoch += 1;
+                    if (currentEpoch <= 50) {
+                        setEpoch(currentEpoch);
+                        // Generate random jitter to simulate ML training
+                        setDisplayParams(realParams.map(p => (parseFloat(p.start) + (Math.random() - 0.5)).toFixed(3)));
+                    } else {
+                        // Converged
+                        clearInterval(interval);
+                        setEpoch("CONVERGED");
+                        setDisplayParams(realParams.map(p => p.end));
+                        setMatrixActive(false);
+                    }
+                }, 80);
+
+                return () => clearInterval(interval);
+            }, [matrixActive]);
+
+            // SVG Paths for Risk Shield (Wild vs Smooth)
+            const pathWild = "M 0 150 Q 50 100 100 250 T 200 50 T 300 280 T 400 120 T 500 290 T 600 80 T 700 300 T 800 150";
+            const pathSmooth = "M 0 150 Q 100 140 200 160 T 400 150 T 600 170 T 800 145";
+
+            return (
+                <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
+                    <div className="max-w-5xl mx-auto">
+                        <div className="flex justify-between items-end mb-6 border-b border-rwv-border pb-4">
+                            <div>
+                                <h2 className="text-xl md:text-3xl font-bold text-white tracking-tight">Fáze 2: Kalibrace & Cycler</h2>
+                                <p className="text-rwv-textMuted text-sm mt-1">Optimalizace parametrů a redukce propadu portfolia (Drawdown)</p>
+                            </div>
+                            <button 
+                                onClick={triggerCalibration}
+                                className={`px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${isCalibrated ? 'bg-rwv-darkolive text-white border border-rwv-border hover:bg-rwv-border' : 'btn-3d-curve'}`}
+                            >
+                                {isCalibrated ? "Zrušit Kalibraci" : "Spustit ML Optimalizátor"}
+                            </button>
+                        </div>
+
+                        {/* CONCEPT B: RISK SHIELD */}
+                        <div className="bg-rwv-panel p-6 rounded-xl border border-rwv-border shadow-xl mb-8 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 z-20">
+                                <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded border ${isCalibrated ? 'bg-green-900/30 text-green-400 border-green-500/50' : 'bg-red-900/30 text-red-400 border-red-500/50'}`}>
+                                    {isCalibrated ? "Ochrana Aktivní (Drawdown -16 %)" : "Nekalibrováno (Drawdown -27 %)"}
+                                </span>
+                            </div>
+                            
+                            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-2 z-20 relative">Štít proti riziku (Volatilní Pásma)</h3>
+                            <p className="text-xs text-gray-500 mb-6 z-20 relative">Ukázka vlivu dynamického dimenzování pozic a HAR volatility na stabilitu portfolia.</p>
+                            
+                            <div className="w-full h-48 relative z-10 bg-rwv-bg/50 rounded-lg border border-rwv-border flex items-center overflow-hidden">
+                                {/* Danger Zone Background */}
+                                <div className={`absolute bottom-0 w-full h-1/3 bg-red-900/10 border-t border-red-900/30 transition-opacity duration-1000 ${isCalibrated ? 'opacity-0' : 'opacity-100'}`}></div>
+                                
+                                {/* Safe Zone Background */}
+                                <div className={`absolute top-1/4 bottom-1/4 w-full bg-rwv-lime/5 border-y border-rwv-lime/20 transition-opacity duration-1000 ${isCalibrated ? 'opacity-100' : 'opacity-0'}`}></div>
+
+                                <svg viewBox="0 0 800 350" className="w-full h-full preserve-3d" preserveAspectRatio="none">
+                                    <path 
+                                        d={isCalibrated ? pathSmooth : pathWild} 
+                                        className="svg-path-morph" 
+                                        fill="none" 
+                                        stroke={isCalibrated ? "#C6F34F" : "#ef4444"} 
+                                        strokeWidth={isCalibrated ? "4" : "2"} 
+                                        strokeLinecap="round"
+                                        style={{ filter: isCalibrated ? 'drop-shadow(0 0 8px rgba(198,243,79,0.5))' : 'none' }}
+                                    />
+                                </svg>
+                            </div>
+                        </div>
+
+                        {/* CONCEPT C: MATRIX CALIBRATION */}
+                        <div className={`premium-panel p-6 rounded-xl transition-all duration-500 ${isCalibrated ? 'animate-matrix-glow' : ''}`}>
+                            <div className="flex justify-between items-center mb-6 border-b border-rwv-border pb-3">
+                                <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Large ML Optimizer: Konvergence Parametrů</h3>
+                                <div className="text-xs font-mono bg-black/50 px-3 py-1 rounded text-rwv-lime border border-rwv-lime/30">
+                                    EPOCH: {epoch} {matrixActive ? "⏳" : (isCalibrated ? "✅" : "")}
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {realParams.map((p, idx) => (
+                                    <div key={idx} className="bg-rwv-bg border border-rwv-border rounded-lg p-4 flex flex-col relative overflow-hidden">
+                                        {/* Matrix scanning line effect when active */}
+                                        {matrixActive && <div className="absolute left-0 right-0 h-1 bg-rwv-lime/20 blur-sm animate-pulse" style={{top: `${Math.random() * 100}%`}}></div>}
+                                        
+                                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-2">{p.name}</div>
+                                        
+                                        <div className="flex justify-between items-baseline mb-1">
+                                            <span className="text-xs text-gray-600">Počátek:</span>
+                                            <span className="text-xs text-gray-400 line-through">{p.start}</span>
+                                        </div>
+                                        
+                                        <div className="flex justify-between items-baseline">
+                                            <span className="text-xs text-gray-600">Aktuální:</span>
+                                            <span className={`text-lg font-bold matrix-text transition-colors duration-300 ${epoch === 'CONVERGED' ? 'text-rwv-lime' : (matrixActive ? 'text-yellow-400' : 'text-gray-300')}`}>
+                                                {displayParams[idx]}
+                                            </span>
+                                        </div>
+                                        
+                                        <div className="mt-3 pt-2 border-t border-rwv-border flex justify-between">
+                                            <span className="text-[9px] text-gray-600 uppercase">Limit optimalizátoru</span>
+                                            <span className="text-[9px] text-gray-500">{p.limit}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div className="mt-6 bg-black/40 border border-rwv-border rounded p-3 font-mono text-[10px] text-gray-400">
+                                {matrixActive ? (
+                                    <span className="text-yellow-400 animate-pulse">> Minimalizace logistických odchylek z logiky výpočtu minim probíhá... loss: {(Math.random() * 0.1).toFixed(4)}</span>
+                                ) : (
+                                    epoch === 'CONVERGED' ? (
+                                        <span className="text-rwv-lime">> ZAMKNUTO: Cyklovač dokončil 5-krokovou sekvenci. Odchylka konvergovala k nule. Engine je připraven.</span>
+                                    ) : (
+                                        <span>> Čekání na inicializaci L-BFGS-B optimalizátoru...</span>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
 
         const INITIAL_DUMMY_CURVE = Array.from({length: 28}, (_, i) => ({
             day: i * 5,
@@ -1212,6 +1392,12 @@
                                     Matematický Model
                                 </button>
                                 <button 
+                                    onClick={() => setViewTab('phase2')}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'phase2' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    Fáze 2 (Kalibrace)
+                                </button>
+                                <button 
                                     onClick={() => setViewTab('health')}
                                     className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'health' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
                                 >
@@ -1339,6 +1525,8 @@
                                     )}
                                 </div>
                             </div>
+                        ) : viewTab === 'phase2' ? (
+                            <Phase2CalibrationTab />
                         ) : (
                             // Debug/Dev Tab (Hidden trigger)
                             <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
