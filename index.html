@@ -419,12 +419,12 @@
                             
                             <div className="mt-6 bg-black/40 border border-rwv-border rounded p-3 font-mono text-[10px] text-gray-400">
                                 {matrixActive ? (
-                                    <span className="text-yellow-400 animate-pulse">> Minimalizace logistických odchylek z logiky výpočtu minim probíhá... loss: {(Math.random() * 0.1).toFixed(4)}</span>
+                                    <span className="text-yellow-400 animate-pulse">&gt; Minimalizace logistických odchylek z logiky výpočtu minim probíhá... loss: {(Math.random() * 0.1).toFixed(4)}</span>
                                 ) : (
                                     epoch === 'CONVERGED' ? (
-                                        <span className="text-rwv-lime">> ZAMKNUTO: Cyklovač dokončil 5-krokovou sekvenci. Odchylka konvergovala k nule. Engine je připraven.</span>
+                                        <span className="text-rwv-lime">&gt; ZAMKNUTO: Cyklovač dokončil 5-krokovou sekvenci. Odchylka konvergovala k nule. Engine je připraven.</span>
                                     ) : (
-                                        <span>> Čekání na inicializaci L-BFGS-B optimalizátoru...</span>
+                                        <span>&gt; Čekání na inicializaci L-BFGS-B optimalizátoru...</span>
                                     )
                                 )}
                             </div>
