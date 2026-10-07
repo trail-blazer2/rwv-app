@@ -1305,48 +1305,91 @@
                 }
             }, [selectedCommodityId, defaultPredictions]);
 
-            // Debounced Custom Slider Simulation
+            // NO Debounced Custom Slider Simulation
+            // Instant Custom Slider Simulation via Trilinear Lookup Tensor
             useEffect(() => {
                 if (!defaultPredictions || !token) return;
-                const timer = setTimeout(() => {
-                    setIsSimulating(true);
-                    fetch(`${API_BASE}/api/v1/simulate-custom`, {
-                        method: 'POST',
-                        headers: getAuthHeaders(),
-                        body: JSON.stringify({
-                            commodity: selectedCommodityId,
-                            A_it: parseFloat(sliders.A_it),
-                            D_it: parseFloat(sliders.D_it),
-                            R_it: parseFloat(sliders.R_it)
-                        })
-                    })
-                    .then(handleApiError)
-                    .then(data => {
-                        if(data.status === "success") { setChartData(data.projection_curve); }
-                        setIsSimulating(false);
-                    })
-                    .catch(err => {
-                        console.error("Simulation failed", err);
-                        setIsSimulating(false);
+                const data = defaultPredictions[selectedCommodityId];
+                if (!data) return;
+
+                if (data.tensor) {
+                    const { A_it, D_it, R_it } = sliders;
+                    
+                    // Helper to format float to dictionary key (e.g. 0.20)
+                    const fmt = (v) => v.toFixed(2);
+                    
+                    // 1. Find the boundaries of our 3D grid cell
+                    const getIdx = (v) => Math.min(Math.floor(v / 0.2), 4);
+                    const aI = getIdx(A_it), dI = getIdx(D_it), rI = getIdx(R_it);
+                    
+                    const A0 = aI * 0.2, A1 = A0 + 0.2;
+                    const D0 = dI * 0.2, D1 = D0 + 0.2;
+                    const R0 = rI * 0.2, R1 = R0 + 0.2;
+                    
+                    // 2. Calculate fractional distance inside the cell (0.0 to 1.0)
+                    const wa = (A_it - A0) / 0.2;
+                    const wd = (D_it - D0) / 0.2;
+                    const wr = (R_it - R0) / 0.2;
+
+                    // 3. Define the 8 corners of the cell and their interpolation weights
+                    const corners = [
+                        { key: `${fmt(A0)}_${fmt(D0)}_${fmt(R0)}`, w: (1 - wa) * (1 - wd) * (1 - wr) },
+                        { key: `${fmt(A1)}_${fmt(D0)}_${fmt(R0)}`, w: wa * (1 - wd) * (1 - wr) },
+                        { key: `${fmt(A0)}_${fmt(D1)}_${fmt(R0)}`, w: (1 - wa) * wd * (1 - wr) },
+                        { key: `${fmt(A1)}_${fmt(D1)}_${fmt(R0)}`, w: wa * wd * (1 - wr) },
+                        { key: `${fmt(A0)}_${fmt(D0)}_${fmt(R1)}`, w: (1 - wa) * (1 - wd) * wr },
+                        { key: `${fmt(A1)}_${fmt(D0)}_${fmt(R1)}`, w: wa * (1 - wd) * wr },
+                        { key: `${fmt(A0)}_${fmt(D1)}_${fmt(R1)}`, w: (1 - wa) * wd * wr },
+                        { key: `${fmt(A1)}_${fmt(D1)}_${fmt(R1)}`, w: wa * wd * wr }
+                    ];
+
+                    // 4. Blend the 8 curves together based on exact slider position
+                    let blendedCurve = new Array(28).fill(0);
+                    let validCorners = 0;
+
+                    corners.forEach(c => {
+                        const cornerCurve = data.tensor[c.key];
+                        if (cornerCurve) {
+                            validCorners++;
+                            for (let i = 0; i < 28; i++) {
+                                blendedCurve[i] += cornerCurve[i] * c.w;
+                            }
+                        }
                     });
-                }, 400); 
 
-                return () => clearTimeout(timer);
-            }, [sliders, selectedCommodityId, token, defaultPredictions]);
-
-            const handleSliderChange = (e, key) => {
-                setSliders(prev => ({ ...prev, [key]: parseFloat(e.target.value) }));
-            };
-            
-            const handleResetToToday = () => {
-                const todayIndices = defaultPredictions?.[selectedCommodityId]?.indices;
-                if (!todayIndices) return;
-                setSliders({
-                    A_it: todayIndices.A,
-                    D_it: todayIndices.D,
-                    R_it: todayIndices.R
-                });
-            };
+                    // Only update if we successfully mapped the grid
+                    if (validCorners === 8) {
+                        const instantCurve = blendedCurve.map((price, i) => ({ 
+                            day: i === 0 ? 0 : i * 5, 
+                            price: price 
+                        }));
+                        setChartData(instantCurve);
+                        setIsSimulating(false);
+                    }
+                } else {
+                    // Graceful fallback to API if tensor isn't generated yet
+                    const timer = setTimeout(() => {
+                        setIsSimulating(true);
+                        fetch(`${API_BASE}/api/v1/simulate-custom`, {
+                            method: 'POST',
+                            headers: getAuthHeaders(),
+                            body: JSON.stringify({
+                                commodity: selectedCommodityId,
+                                A_it: parseFloat(sliders.A_it),
+                                D_it: parseFloat(sliders.D_it),
+                                R_it: parseFloat(sliders.R_it)
+                            })
+                        })
+                        .then(handleApiError)
+                        .then(res => {
+                            if(res.status === "success") { setChartData(res.projection_curve); }
+                            setIsSimulating(false);
+                        })
+                        .catch(err => { console.error("Sim error", err); setIsSimulating(false); });
+                    }, 400);
+                    return () => clearTimeout(timer);
+                }
+            }, [sliders, selectedCommodityId, defaultPredictions]);
 
             // RENDER AUTH SCREEN
             if (!token) {
