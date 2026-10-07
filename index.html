@@ -1359,10 +1359,21 @@
 
                     // Only update if we successfully mapped the grid
                     if (validCorners === 8) {
-                        const instantCurve = blendedCurve.map((price, i) => ({ 
-                            day: i === 0 ? 0 : i * 5, 
-                            price: price 
-                        }));
+                        // FIX: Restore the 80% bands by applying the default volatility ratio
+                        const defaultCurve = data.projection_curve;
+                        
+                        const instantCurve = blendedCurve.map((price, i) => {
+                            const defPt = defaultCurve[i] || { price: 1, low: 1, high: 1 };
+                            const ratioLow = defPt.price > 0 ? (defPt.low / defPt.price) : 1;
+                            const ratioHigh = defPt.price > 0 ? (defPt.high / defPt.price) : 1;
+                            
+                            return { 
+                                day: i === 0 ? 0 : i * 5, 
+                                price: price,
+                                low: price * ratioLow,
+                                high: price * ratioHigh
+                            };
+                        });
                         setChartData(instantCurve);
                         setIsSimulating(false);
                     }
@@ -1538,6 +1549,42 @@
                                             <SidebarSlider title="Ekonomická Aktivita (A)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
                                             <SidebarSlider title="Intenzita Deficitu (D)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
                                             <SidebarSlider title="Systémové Riziko (R)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
+                                        </div>
+                                    </div>
+                                    {/* --- CALIBRATION BUTTONS --- */}
+                                    <hr className="border-rwv-border" />
+                                    <div>
+                                        <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-4">Řízení Jádra (Kalibrace)</h2>
+                                        <div className="flex flex-col gap-3">
+                                            {/* Button 1: Quick Sync (Active) */}
+                                            <button 
+                                                onClick={() => {
+                                                    const btn = document.getElementById('btn-quick-cal');
+                                                    const origText = btn.innerHTML;
+                                                    btn.innerHTML = "Spouštím kalibraci na pozadí...";
+                                                    fetch(`${API_BASE}/api/v1/trigger-engine`, { method: 'POST', headers: getAuthHeaders() })
+                                                        .then(() => setTimeout(() => btn.innerHTML = origText, 2000))
+                                                        .catch(() => { alert("Chyba API."); btn.innerHTML = origText; });
+                                                }}
+                                                title="Stáhne aktuální tržní ceny, přepočítá 20d/120d volatilitu a zaktualizuje tržní křivky a 3D Tensor pro hladký chod sliderů. Tento proces NEMĚNÍ fundamentální makro váhy z Fáze 2."
+                                                className="w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold bg-rwv-bg border border-rwv-border hover:border-rwv-lime/50 hover:text-white text-gray-300 transition group flex flex-col relative"
+                                            >
+                                                <span id="btn-quick-cal" className="flex items-center gap-2 z-10"><div className="w-1.5 h-1.5 rounded-full bg-rwv-lime"></div> Blesková Kalibrace</span>
+                                                <span className="text-[9px] font-normal text-gray-500 mt-1 z-10">Denní update cen a lokální volatility</span>
+                                            </button>
+
+                                            {/* Button 2: Deep Refit (Disabled / Phase 3) */}
+                                            <button 
+                                                disabled
+                                                title="Vyžaduje Fázi 3. Spustí masivní cloudový ML optimalizátor přes posledních 15 let dat k nalezení nových základních vah (s_wg, beta, theta atd.). Slouží k adaptaci modelu na nové makroekonomické režimy, brání přeučení modelu (overfitting)."
+                                                className="w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold bg-rwv-bg/40 border border-rwv-border/40 text-gray-600 cursor-not-allowed flex flex-col relative overflow-hidden"
+                                            >
+                                                <span className="flex items-center justify-between">
+                                                    <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-gray-700"></div> Hloubková Makro Rekalibrace</span>
+                                                    <span className="text-[8px] bg-rwv-border px-1.5 py-0.5 rounded text-gray-400">FÁZE 3</span>
+                                                </span>
+                                                <span className="text-[9px] font-normal text-gray-600 mt-1">Full 15-letý Large ML refit</span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
