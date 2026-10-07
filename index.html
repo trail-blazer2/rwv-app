@@ -285,7 +285,7 @@
             return (
                 <div>
                     <div className="flex flex-wrap justify-between text-[11px] text-gray-500 mb-2 gap-2">
-                        <span>{label} · týdenní data, Stage 15 · propad od maxima (%)</span>
+                        <span>{label} · týdenní data, propad od maxima (%)</span>
                         <span><span className="text-red-400">■</span> Vždy 1× (max {ddX.toFixed(1)} %) &nbsp; <span className="text-rwv-lime">■</span> Dimenzování dle volatility (max {ddV.toFixed(1)} %)</span>
                     </div>
                     <div className="relative bg-rwv-bg/50 border border-rwv-border rounded-lg overflow-hidden">
@@ -416,7 +416,7 @@
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 border-b border-rwv-border pb-4 gap-4">
                             <div>
                                 <h2 className="text-xl md:text-3xl font-bold text-white tracking-tight">Fáze 2: Kalibrace & Cycler</h2>
-                                <p className="text-rwv-textMuted text-sm mt-1">Replay zdokumentovaných testů (Stage 9 a Stage 15)</p>
+                                <p className="text-rwv-textMuted text-sm mt-1">Replay zdokumentovaných testů</p>
                             </div>
                             <button onClick={triggerCalibration}
                                 className={`px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${isCalibrated ? 'bg-rwv-darkolive text-white border border-rwv-border hover:bg-rwv-border' : 'btn-3d-curve w-full md:w-auto'}`}>
@@ -425,8 +425,8 @@
                         </div>
         
                         <div className="bg-rwv-panel p-6 rounded-xl border border-rwv-border shadow-xl mb-8">
-                            <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider mb-2">Propad kapitálu: vždy 1× vs. dimenzování dle volatility (Stage 15)</h3>
-                            <p className="text-xs text-gray-500 mb-4">Reálná data z testu 2020-06 až 2025-06. Křivka se odkrývá postupně se spuštěním; váhy níže jsou záznam kalibrace ze Stage 9 a graf propadu na nich nezávisí.</p>
+                            <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider mb-2">Propad kapitálu: vždy 1× vs. dimenzování dle volatility</h3>
+                            <p className="text-xs text-gray-500 mb-4">Reálná data z testu 2020-06 až 2025-06. Křivka se odkrývá postupně se spuštěním; váhy níže jsou záznam kalibrace a graf propadu na nich nezávisí.</p>
                             <div className="flex gap-2 mb-3 flex-wrap">
                                 {["PORTFOLIO", ...COMMODITIES.map(c => c.id)].map(k => (
                                     <button key={k} onClick={() => setDdKey(k)}
@@ -439,7 +439,7 @@
                         </div>
         
                         <div className="bg-rwv-panel p-6 rounded-xl border border-rwv-border shadow-xl">
-                            <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider mb-6">Konvergence 23 vah (replay Stage 9)</h3>
+                            <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider mb-6">Konvergence 23 vah</h3>
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                                 {realParams.map((p, idx) => (
                                     <div key={idx} className={`bg-rwv-bg border rounded-lg p-3 flex flex-col transition-colors duration-500 ${isCalibrated && !matrixActive ? 'border-rwv-lime/40 bg-rwv-lime/5' : 'border-rwv-border'}`}>
@@ -457,7 +457,7 @@
                             </div>
                             <div className="mt-6"><ParamLines params={realParams} history={history} /></div>
                             <div className="mt-6 text-sm font-semibold text-gray-300 bg-rwv-bg border border-rwv-border rounded-lg p-4">
-                                {matrixActive ? `Aktualizace vah… ${progress} %` : (isCalibrated ? "Replay dokončen. Váhy jsou na hodnotách zaznamenaných ve Stage 9." : "Čekání na spuštění.")}
+                                {matrixActive ? `Aktualizace vah… ${progress} %` : (isCalibrated ? "Simulace dokončena." : "Čekání na spuštění.")}
                             </div>
                         </div>
                     </div>
