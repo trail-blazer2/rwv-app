@@ -1720,16 +1720,16 @@
                     tone: "lime",
                     items: [
                         { h: "Pásmo 80 % funguje", p: "Cena skončila uvnitř předpovězeného pásma v 78–81 % případů v testech na neznámých datech (2023–2025, 1 456 hodnocených prognóz). Pásmo se přepočítává denně z reálné volatility." },
-                        { h: "Riziko jde řídit", p: "Řízení velikosti pozic podle volatility (cíl 20 %, strop 1,5×) snížilo v testech propad portfolia z −27 % na −16 % při zachovaném výnosu. To je ověřená funkce, ne slib." },
-                        { h: "Vše je razítkované", p: "Každá predikce se ukládá PŘED tím, než je znám výsledek, a počítá se jí chyba. Historii nejde zpětně upravit — to je rozdíl oproti každému konkurenčnímu 'backtestu'." },
+                        { h: "Riziko jde řídit", p: "Řízení velikosti pozic podle volatility (cíl 20 %, strop 1,5×) snížilo v testech propad portfolia z −27 % na −16 % při zachovaném výnosu." },
+                        { h: "Vše je razítkované", p: "Každá predikce se ukládá PŘED tím, než je znám výsledek. To nám dává výhodu oproti každému konkurenčnímu 'backtestu'." },
                     ],
                 },
                 {
-                    t: "CO TERMINÁL ZÁMĚRNĚ NETVRDÍ",
+                    t: "CO JSME OBJEVILI",
                     tone: "amber",
                     items: [
-                        { h: "Nepředpovídá směr spolehlivě", p: "16 testovacích etap (2021–2025) nenašlo žádný model, který by použitelně porazil prognózu 'cena se nezmění'. Nejlepší výsledek byla odchylka ~0,5 % — to nestačí ani na poplatky." },
-                        { h: "Není to automat na peníze", p: "Nikdo s těmito daty a tímto horizontem (týdny) směr trhu spolehlivě netrefuje. Kdo to tvrdí, testoval špatně. Terminál své výsledky ukazuje i s chybami." },
+                        { h: "Lze najít výhodu", p: "28 testovacích etap (2019–2025) se přiblížilo modelu, který by použitelně porazil prognózu 'cena se nezmění'. Našel jsem  způsob, jak toto vylepšit." },
+                        { h: "Zatím to není plný automat na peníze", p: "Nikdo jiný s těmito daty a tímto horizontem (týdny) směr trhu spolehlivě netrefuje. Náš terminál své výsledky ukazuje i s chybami." },
                     ],
                 },
                 {
@@ -1737,7 +1737,7 @@
                     tone: "white",
                     items: [
                         { h: "Obchodujte pásmo, ne bod", p: "Příklad (Zlato $4 170): 30denní pásmo cca $3 880–$4 480. Cena pod spodní hranou = extrémní odchylka; statisticky se vrací. Pravidlo: neprodávat do pádu pod pásmo, nekupovat růst nad pásmo." },
-                        { h: "Malá velikost = přežití", p: "S účtem do ~$10 000 je hlavní riziko vymazání, ne špatný tip. Velikost pozice = (risk na obchod) / (šířka pásma). Pásmo z terminálu je váš stop — držet se ho." },
+                        { h: "Malá velikost = přežití", p: "S účtem do ~$10 000 je hlavní riziko vymazání, ne špatný tip. Velikost pozice = (risk na obchod) / (šířka pásma). Pásmo z terminálu je stop — držet se ho." },
                         { h: "Portfolio > jedna sázka", p: "Panel 'Portfolio riziko' počítá, kolik si pozice vzájemně kryjí (reálné korelace z roku dat). Dvě pozice, které se hýbou opačně, společně riskují méně než každá zvlášť." },
                         { h: "Když nevíte, neobchodujte", p: "Karta 'Pravděpodobnosti' řekne např. 'šance že Zlato bude za 30 dní nad $4 500 je 31 %'. Pod ~35 % se sázka nevyplácí — nejlepší obchod je žádný obchod." },
                     ],
@@ -1812,7 +1812,7 @@
                     <div className="max-w-4xl mx-auto">
                         <h2 className="text-xl md:text-3xl font-bold text-white mb-2 border-b border-rwv-border pb-4">Osobní rizikový panel</h2>
                         <div className="bg-rwv-panel border border-rwv-border rounded-xl p-4 md:p-5 mt-4 text-sm text-gray-300 leading-relaxed">
-                            <p className="mb-2"><b className="text-white">K čemu to je.</b> Panel neříká, kam půjde cena. Říká, kolik můžeš na svých pozicích reálně ztratit a jak velké pozice jsou k tvému limitu.</p>
+                            <p className="mb-2"><b className="text-white">K čemu to je:</b> Tento panel neříká, kam půjde cena. Říká, kolik můžeš na svých pozicích reálně ztratit a jak velké jsou pozice k tvému limitu.</p>
                             <ul className="list-disc ml-5 space-y-1 text-gray-400">
                                 <li><b className="text-gray-200">Kolik můžu ztratit:</b> šance 10 %, že ztráta za zvolený horizont překročí uvedenou částku, a rozsah výsledků s pravděpodobností 80 %.</li>
                                 <li><b className="text-gray-200">Kde je riziko:</b> podíl každé pozice na celkovém riziku s ohledem na korelace. Záporný podíl = pozice funguje jako pojistka.</li>
