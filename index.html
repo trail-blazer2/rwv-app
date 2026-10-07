@@ -1391,6 +1391,20 @@
                 }
             }, [sliders, selectedCommodityId, defaultPredictions]);
 
+            const handleSliderChange = (e, key) => {
+                setSliders(prev => ({ ...prev, [key]: parseFloat(e.target.value) }));
+            };
+            
+            const handleResetToToday = () => {
+                const todayIndices = defaultPredictions?.[selectedCommodityId]?.indices;
+                if (!todayIndices) return;
+                setSliders({
+                    A_it: todayIndices.A,
+                    D_it: todayIndices.D,
+                    R_it: todayIndices.R
+                });
+            };
+
             // RENDER AUTH SCREEN
             if (!token) {
                 return <AuthScreen onAuth={(t) => {
