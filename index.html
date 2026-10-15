@@ -853,7 +853,7 @@
         }
 
         // --- DASHBOARD CHART COMPONENT (HEIGHT-LOCKED AT 320px / 500px) ---
-        function ProjectionChart({ data, commodityLabel, isSimulating, showBand, onToggleBand }) {
+        function ProjectionChart({ data, commodityLabel, commodityId, isSimulating, showBand, onToggleBand }) {
             const canvasRef = useRef(null);
             const chartInstanceRef = useRef(null);
 
@@ -977,8 +977,20 @@
 
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-2 z-20">
                         <div>
-                            <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie">
-                                Cenová Trajektorie · {showBand ? 'střední trajektorie a kvantilový vějíř (68 % / 80 % / 95 %)' : 'střední scénář a pásmo 80 %'}
+                            <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie pr-4">
+                                Cenová Trajektorie · {showBand 
+                                    ? (commodityId === 'Brent' || commodityId === 'Gas' ? 'střední trajektorie a vějíř (68/80/95) · ' : 'střední trajektorie a kvantilový vějíř (68 % / 80 % / 95 %)') 
+                                    : (commodityId === 'Brent' || commodityId === 'Gas' ? 'střední scénář · ' : 'střední scénář')}
+                                
+                                {(commodityId === 'Brent' || commodityId === 'Gas') && (
+                                    <span className="relative inline-block text-rwv-lime">
+                                        Ověřený edge
+                                        <svg className="absolute -top-1 -right-3.5 w-2.5 h-2.5 text-rwv-lime drop-shadow-[0_0_3px_rgba(198,243,79,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        </svg>
+                                    </span>
+                                )}
                             </h3>
                         </div>
                         
@@ -2089,6 +2101,7 @@
                                 <ProjectionChart 
                                     data={displayChartData} 
                                     commodityLabel={currentLabel} 
+                                    commodityId={selectedCommodityId}
                                     isSimulating={isSimulating || !defaultPredictions}
                                     showBand={phase3Toggles.fanChart}
                                     onToggleBand={() => togglePhase3('fanChart')}
