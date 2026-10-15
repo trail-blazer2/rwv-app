@@ -1973,19 +1973,30 @@
                                     <div>
                                         <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-3">Cílové Aktivum</h2>
                                         <div className="grid grid-cols-2 gap-2">
-                                            {COMMODITIES.map(c => (
-                                                <button
-                                                    key={c.id}
-                                                    onClick={() => setSelectedCommodityId(c.id)}
-                                                    className={`w-full text-center px-2 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 border ${
-                                                        selectedCommodityId === c.id 
-                                                        ? 'bg-gradient-to-br from-rwv-darkolive to-rwv-olive text-white border-transparent' 
-                                                        : 'bg-rwv-bg text-gray-400 border-rwv-border hover:border-rwv-textMuted hover:text-white'
-                                                    }`}
-                                                >
-                                                    {c.label}
-                                                </button>
-                                            ))}
+                                            {COMMODITIES.map(c => {
+                                                const hasEdge = c.id === 'Brent' || c.id === 'Gas';
+                                                return (
+                                                    <button
+                                                        key={c.id}
+                                                        onClick={() => setSelectedCommodityId(c.id)}
+                                                        className={`w-full text-center px-2 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 border ${
+                                                            selectedCommodityId === c.id 
+                                                            ? 'bg-gradient-to-br from-rwv-darkolive to-rwv-olive text-white border-transparent' 
+                                                            : 'bg-rwv-bg text-gray-400 border-rwv-border hover:border-rwv-textMuted hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <span className="relative inline-block">
+                                                            {c.label}
+                                                            {hasEdge && (
+                                                                <svg className="absolute -top-1 -right-3 w-2.5 h-2.5 text-rwv-lime drop-shadow-[0_0_3px_rgba(198,243,79,0.8)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                                                </svg>
+                                                            )}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
