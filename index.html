@@ -1407,7 +1407,7 @@
             return (
                 <div className="mt-6 shrink-0 premium-panel p-4 md:p-5 transition-all duration-300">
                     <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-sm font-bold text-gray-300">Pokročilá Analytika (Fáze 3 - Probíhají poslední úpravy)</h4>
+                        <h4 className="text-sm font-bold text-gray-300">Pokročilá Analytika (Fáze 3)</h4>
                         <span className="text-xs bg-rwv-border text-rwv-textMuted px-2 py-1 rounded-md uppercase tracking-wider font-bold">
                             {anyActive ? 'Aktivní' : 'Připraveno'}
                         </span>
@@ -1930,6 +1930,12 @@
                                     Výstupní Matice
                                 </button>
                                 <button 
+                                    onClick={() => setViewTab('edge')}
+                                    className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'edge' ? 'bg-rwv-panel text-white shadow' : 'text-rwv-lime/80 hover:text-rwv-lime'}`}
+                                >
+                                    Vydělávání
+                                </button>
+                                <button 
                                     onClick={() => setViewTab('simulation')}
                                     className={`px-3 md:px-4 py-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider rounded-md transition whitespace-nowrap ${viewTab === 'simulation' ? 'bg-rwv-panel text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
                                 >
@@ -2123,6 +2129,8 @@
                                     )}
                                 </div>
                             </div>
+                        ) : viewTab === 'edge' ? (
+                            <EdgePanel token={token} />
                         ) : viewTab === 'phase2' ? (
                             <Phase2CalibrationTab />
                         ) : (
@@ -2382,6 +2390,7 @@
                         <div className={`w-1.5 h-1.5 rounded-full ${running ? 'bg-rwv-olive animate-pulse' : st.state === 'error' ? 'bg-red-400' : 'bg-rwv-lime'}`}></div>
                         {running ? `Kalibruji… ${st.progress || 0} %` : 'Celková kalibrace'}
                     </span>
+                    <span className="relative block text-[10px] text-rwv-textMuted mt-1 font-normal">Poslední kalibrace: {st.last_date ? `data do ${st.last_date}` : 'zatím žádná'}</span>
                     {st.message && st.state !== 'idle' && (
                         <span className="relative block text-[10px] text-rwv-textMuted mt-1 font-normal leading-snug">{st.message}</span>
                     )}
@@ -2390,7 +2399,74 @@
         }
 
 
-
+        // --- EDGE TAB ---
+        function EdgePanel({ token }) {
+            const [sig, setSig] = useState(null);
+            useEffect(() => {
+                fetch(`${API_BASE}/api/v1/signals`, { headers: { 'Authorization': `Bearer ${token}` } })
+                    .then(r => r.json()).then(r => setSig(r.data || {})).catch(() => setSig({}));
+            }, []);
+            const dir = (v) => v > 0 ? 'LONG' : v < 0 ? 'SHORT' : '—';
+            const Stat = ({ l, v, s }) => (
+                <div className="bg-rwv-bg border border-rwv-border rounded-xl p-4">
+                    <div className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">{l}</div>
+                    <div className="text-2xl font-semibold text-white mt-1">{v}</div>
+                    {s && <div className="text-[11px] text-gray-500 mt-1">{s}</div>}
+                </div>
+            );
+            return (
+                <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
+                    <div className="max-w-5xl mx-auto space-y-6">
+                        <div className="border-b border-rwv-border pb-4">
+                            <div className="text-xs font-bold uppercase tracking-widest text-rwv-lime">Výsledek výzkumu · 38 testovacích etap</div>
+                            <h2 className="text-xl md:text-3xl font-bold text-white mt-1">Ověřený edge: Energy Carry</h2>
+                            <p className="text-sm text-gray-400 mt-2 max-w-3xl">Z 38 předem registrovaných testů na volně dostupných datech prošel jediný směrový signál všemi kontrolami: struktura futures křivky ropy a plynu (backwardace = long, contango = short). Carry prémie je v akademické literatuře známá; my jsme ji nezávisle potvrdili na bezplatných datech NYMEX/EIA s pevnými pravidly stanovenými před testem.</p>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <Stat l="Sharpe ratio" v="0.55" s="1995–2024, po nákladech 5 bps" />
+                            <Stat l="Statistická síla" v="t = 2.99" s="hranice významnosti t ≥ 2" />
+                            <Stat l="Testů celkem" v="38" s="1 směrový signál prošel" />
+                            <Stat l="Po roce 2018" v="0.21" s="slabší, ale stále kladný" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {['Brent', 'Gas'].map(c => {
+                                const s = sig?.[c];
+                                return (
+                                    <div key={c} className="premium-panel p-5">
+                                        <div className="text-xs font-bold uppercase tracking-widest text-gray-200 mb-3">Dnešní signál · {c === 'Gas' ? 'Plyn' : 'Ropa Brent'}</div>
+                                        {s?.status === 'ok' ? (
+                                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                                <div><span className="text-rwv-textMuted">Carry:</span> <b className="text-white">{dir(s.carry)}</b></div>
+                                                <div><span className="text-rwv-textMuted">Trend 12-1:</span> <b className="text-white">{dir(s.trend)}</b></div>
+                                                <div><span className="text-rwv-textMuted">Shoda signálů:</span> <b className={s.agree ? 'text-rwv-lime' : 'text-gray-400'}>{s.agree ? 'ANO – silnější' : 'ne'}</b></div>
+                                                <div><span className="text-rwv-textMuted">Velikost pozice:</span> <b className="text-white">{s.size_10vol}×</b></div>
+                                            </div>
+                                        ) : <div className="text-xs text-gray-500">Načítám / data futures nejsou dnes k dispozici.</div>}
+                                        {c === 'Brent' && <p className="text-[10px] text-rwv-textMuted mt-3">Testováno na WTI, Brent zobrazen jako proxy.</p>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="premium-panel p-5 text-sm text-gray-300">
+                            <div className="text-xs font-bold uppercase tracking-widest text-gray-200 mb-2">Proč to platí</div>
+                            <p>Každý signál se ukládá s časovým razítkem PŘED známým výsledkem. Test prošel 4 kontrolami kvality dat (roll kontraktů, srovnání s ETF USO/UNG), výsledek je stabilní v obou polovinách období a nezávisí na dnech přechodu kontraktů.</p>
+                        </div>
+                        <div className="premium-panel p-5 border border-rwv-olive/40">
+                            <div className="text-xs font-bold uppercase tracking-widest text-rwv-lime mb-2">Další krok · rozšíření edge na kovy</div>
+                            <h3 className="text-lg font-bold text-white">COMEX skladové zásoby (zlato, stříbro, měď)</h3>
+                            <p className="text-sm text-gray-400 mt-2">Nejbližší bezplatná náhrada fyzické napjatosti trhu, za kterou profesionálové platí. Prudký pokles poměru „registered / eligible“ a výběry kovu mohou ukázat, že držitelé stahují kov z dodávkového systému dřív, než se to projeví v ceně futures.</p>
+                            <ul className="text-sm text-gray-400 mt-3 space-y-1 list-disc ml-5">
+                                <li>Sběr denních reportů CME za co nejvíce let (registered, eligible, výběry).</li>
+                                <li>Výpočet poměru a jeho rychlosti změny s přísným zpožděním publikace.</li>
+                                <li>Stejný přísný test jako u energie: řízení dle volatility, náklady 5 bps, obě poloviny, NW-t.</li>
+                            </ul>
+                            <p className="text-[11px] text-rwv-textMuted mt-3">Realistický výsledek: filtr pro kovy střední síly. Nejnáročnější zbývající bezplatný zdroj – zatím neautomatizováno.</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+        
         // --- SIDEBAR SLIDER COMPONENT (MUTED OLIVE/GRAY PALETTE MATCHING UI) ---
         function SidebarSlider({ title, value, momentum = null, showMomentum = true, onChange }) {
             const hasMom = momentum !== null && momentum !== undefined && !Number.isNaN(momentum);
