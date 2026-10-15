@@ -2392,7 +2392,9 @@
                     </span>
                     <span className="relative block text-[10px] text-rwv-textMuted mt-1 font-normal">Poslední kalibrace: {st.last_date ? `data do ${st.last_date}` : 'zatím žádná'}</span>
                     {st.message && st.state !== 'idle' && (
-                        <span className="relative block text-[10px] text-rwv-textMuted mt-1 font-normal leading-snug">{st.message}</span>
+                        <span className="relative block text-[10px] text-rwv-textMuted mt-1 font-normal leading-snug">
+                            {st.message.split(/\n|(?:[,;·|—-]\s*)?(?:θ|theta)/i)[0].trim()}
+                        </span>
                     )}
                 </button>
             );
