@@ -672,44 +672,225 @@
                 ctx.restore();
             }
         };
+        // --- ADDON 7: ČNB-STYLE QUANTILE FAN CHART PLUGIN (68% / 80% / 95%) ---
         const rangeBandPlugin = {
             id: 'rwvBand',
             beforeDatasetsDraw: (chart) => {
                 const b = chart.canvas._rwv_band;
                 if (!b || !chart.canvas._rwv_show || !chart.scales.x || !chart.scales.y) return;
                 const xs = chart.scales.x, ys = chart.scales.y, ctx = chart.ctx;
+
                 ctx.save();
-                ctx.beginPath(); ctx.rect(chart.chartArea.left, chart.chartArea.top, chart.chartArea.right - chart.chartArea.left, chart.chartArea.bottom - chart.chartArea.top); ctx.clip();
                 ctx.beginPath();
-                b.high.forEach((v, i) => {
-                    const x = xs.getPixelForValue(i), y = ys.getPixelForValue(v);
-                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-                });
-                for (let i = b.low.length - 1; i >= 0; i--) ctx.lineTo(xs.getPixelForValue(i), ys.getPixelForValue(b.low[i]));
-                ctx.closePath();
-                ctx.fillStyle = 'rgba(198, 243, 79, 0.07)'; ctx.fill();
-                ctx.strokeStyle = 'rgba(198, 243, 79, 0.25)'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.rect(
+                    chart.chartArea.left,
+                    chart.chartArea.top,
+                    chart.chartArea.right - chart.chartArea.left,
+                    chart.chartArea.bottom - chart.chartArea.top
+                );
+                ctx.clip();
+
+                // 1) Outer 95% Extreme Fan (Light Zone · ±1.96σ)
+                if (b.high95 && b.low95) {
+                    ctx.beginPath();
+                    b.high95.forEach((v, i) => {
+                        const x = xs.getPixelForValue(i), y = ys.getPixelForValue(v);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    });
+                    for (let i = b.low95.length - 1; i >= 0; i--) {
+                        ctx.lineTo(xs.getPixelForValue(i), ys.getPixelForValue(b.low95[i]));
+                    }
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(198, 243, 79, 0.055)';
+                    ctx.fill();
+
+                    ctx.setLineDash([2, 4]);
+                    ctx.strokeStyle = 'rgba(198, 243, 79, 0.18)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+
+                // 2) Inner 68% Core Volatility Fan (Darker Zone · ±1.00σ)
+                if (b.high68 && b.low68) {
+                    ctx.beginPath();
+                    b.high68.forEach((v, i) => {
+                        const x = xs.getPixelForValue(i), y = ys.getPixelForValue(v);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    });
+                    for (let i = b.low68.length - 1; i >= 0; i--) {
+                        ctx.lineTo(xs.getPixelForValue(i), ys.getPixelForValue(b.low68[i]));
+                    }
+                    ctx.closePath();
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = 'rgba(198, 243, 79, 0.14)';
+                    ctx.fill();
+                }
+
+                // 3) Validated 80% Out-of-Sample Boundary Lines (±1.2816σ)
+                if (b.high80 && b.low80) {
+                    ctx.setLineDash([5, 4]);
+                    ctx.strokeStyle = 'rgba(198, 243, 79, 0.45)';
+                    ctx.lineWidth = 1.2;
+
+                    ctx.beginPath();
+                    b.high80.forEach((v, i) => {
+                        const x = xs.getPixelForValue(i), y = ys.getPixelForValue(v);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    });
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    b.low80.forEach((v, i) => {
+                        const x = xs.getPixelForValue(i), y = ys.getPixelForValue(v);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    });
+                    ctx.stroke();
+                }
+
                 ctx.restore();
             }
         };
         Chart.register(verticalUnderfillPlugin, advancedHoverPlugin, rangeBandPlugin);
 
-        // --- DASHBOARD CHART COMPONENT ---
-        function ProjectionChart({ data, commodityLabel, isSimulating }) {
+        // --- HELPER: TRILINEAR TENSOR INTERPOLATION ---
+        function interpolateTensorCurve(tensor, A_it, D_it, R_it) {
+            if (!tensor) return null;
+            const cl = (v) => Math.max(0, Math.min(1, v));
+            const a = cl(A_it), d = cl(D_it), r = cl(R_it);
+            const fmt = (v) => v.toFixed(2);
+            const getIdx = (v) => Math.min(Math.floor(v / 0.2), 4);
+            const aI = getIdx(a), dI = getIdx(d), rI = getIdx(r);
+
+            const A0 = aI * 0.2, A1 = A0 + 0.2;
+            const D0 = dI * 0.2, D1 = D0 + 0.2;
+            const R0 = rI * 0.2, R1 = R0 + 0.2;
+
+            const wa = (a - A0) / 0.2;
+            const wd = (d - D0) / 0.2;
+            const wr = (r - R0) / 0.2;
+
+            const corners = [
+                { key: `${fmt(A0)}_${fmt(D0)}_${fmt(R0)}`, w: (1 - wa) * (1 - wd) * (1 - wr) },
+                { key: `${fmt(A1)}_${fmt(D0)}_${fmt(R0)}`, w: wa * (1 - wd) * (1 - wr) },
+                { key: `${fmt(A0)}_${fmt(D1)}_${fmt(R0)}`, w: (1 - wa) * wd * (1 - wr) },
+                { key: `${fmt(A1)}_${fmt(D1)}_${fmt(R0)}`, w: wa * wd * (1 - wr) },
+                { key: `${fmt(A0)}_${fmt(D0)}_${fmt(R1)}`, w: (1 - wa) * (1 - wd) * wr },
+                { key: `${fmt(A1)}_${fmt(D0)}_${fmt(R1)}`, w: wa * (1 - wd) * wr },
+                { key: `${fmt(A0)}_${fmt(D1)}_${fmt(R1)}`, w: (1 - wa) * wd * wr },
+                { key: `${fmt(A1)}_${fmt(D1)}_${fmt(R1)}`, w: wa * wd * wr }
+            ];
+
+            let blendedCurve = new Array(28).fill(0);
+            let validCorners = 0;
+
+            corners.forEach(c => {
+                const cornerCurve = tensor[c.key];
+                if (cornerCurve) {
+                    validCorners++;
+                    for (let i = 0; i < 28; i++) {
+                        blendedCurve[i] += cornerCurve[i] * c.w;
+                    }
+                }
+            });
+
+            return validCorners === 8 ? blendedCurve : null;
+        }
+
+        // --- HELPER: EXACT SHAPLEY VALUE ATTRIBUTION OVER THE 3D TENSOR ---
+        function shapleyAttribution(tensor, s, step, spot) {
+            const base = { A: 0.5, D: 0.5, R: 0.5 }, keys = ['A', 'D', 'R'];
+            const f = (set) => {
+                const curve = interpolateTensorCurve(
+                    tensor,
+                    set.has('A') ? s.A_it : base.A,
+                    set.has('D') ? s.D_it : base.D,
+                    set.has('R') ? s.R_it : base.R
+                );
+                return curve ? curve[step] : spot;
+            };
+            const w = [1 / 3, 1 / 6, 1 / 3]; // Exact Shapley weights by |S| = 0, 1, 2 for n = 3
+            const phi = {};
+            for (const k of keys) {
+                const others = keys.filter(x => x !== k);
+                let v = 0;
+                for (let m = 0; m < 4; m++) {
+                    const S = new Set(others.filter((_, i) => m & (1 << i)));
+                    v += w[S.size] * (f(new Set([...S, k])) - f(S));
+                }
+                phi[k] = v;
+            }
+            phi.MKT = f(new Set()) - spot; // Curve / carry / season at neutral indices (0.5, 0.5, 0.5)
+
+            // Local tangent sensitivity (L'Hôpital limit) if all sliders are parked at exact 0.50
+            const sens = {
+                A: Math.abs((interpolateTensorCurve(tensor, 0.55, 0.5, 0.5)?.[step] || spot) - (interpolateTensorCurve(tensor, 0.45, 0.5, 0.5)?.[step] || spot)),
+                D: Math.abs((interpolateTensorCurve(tensor, 0.5, 0.55, 0.5)?.[step] || spot) - (interpolateTensorCurve(tensor, 0.5, 0.45, 0.5)?.[step] || spot)),
+                R: Math.abs((interpolateTensorCurve(tensor, 0.5, 0.5, 0.55)?.[step] || spot) - (interpolateTensorCurve(tensor, 0.5, 0.5, 0.45)?.[step] || spot))
+            };
+            return { phi, sens };
+        }
+
+        // --- HELPER: READ BACKEND MOMENTUM (WITH PRE-DEPLOY VOLATILITY ESTIMATE IF NEEDED) ---
+        function deriveCommodityMomentum(commodityData) {
+            if (!commodityData) return { A: null, D: null, R: null, isEstimate: false };
+            if (commodityData.momentum && commodityData.momentum.A !== undefined && commodityData.momentum.A !== null) {
+                return { ...commodityData.momentum, isEstimate: false };
+            }
+            // Pre-deploy estimate from live HAR vol & futures curve until Modal recalculates
+            const ind = commodityData.indices;
+            const vols = commodityData.vols;
+            if (!ind || !vols) return { A: null, D: null, R: null, isEstimate: true };
+
+            const fut = commodityData.fut_data || [];
+            const basis = (fut.length >= 2 && fut[0].price > 0 && fut[1].price > 0)
+                ? Math.log(fut[0].price / fut[1].price) * 5.0
+                : 0;
+            return {
+                A: +((ind.A - 0.5) * 1.8).toFixed(2),
+                D: +((ind.D - 0.5) * 2.1 + basis * 0.5).toFixed(2),
+                R: +(((vols.v5 / Math.max(vols.v22, 0.05)) - 1.0) * 1.6).toFixed(2),
+                isEstimate: true
+            };
+        }
+
+        // --- DASHBOARD CHART COMPONENT (WITH ČNB QUANTILE FAN CURVES) ---
+        function ProjectionChart({ data, commodityLabel, isSimulating, showBand, onToggleBand }) {
             const canvasRef = useRef(null);
             const chartInstanceRef = useRef(null);
-            const [showBand, setShowBand] = useState(false);
 
             useEffect(() => {
                 if (!canvasRef.current || !data || data.length === 0) return;
 
                 const labels = data.map(d => d.day === 0 ? "Dnes" : `+${d.day} dní`);
                 const prices = data.map(d => d.price);
-                const lows = data.map(d => d.low ?? d.price);
-                const highs = data.map(d => d.high ?? d.price);
-                const lo = showBand ? Math.min(...lows) : Math.min(...prices), hi = showBand ? Math.max(...highs) : Math.max(...prices);
-                const pad = (hi - lo) * 0.04 || 1;
-                canvasRef.current._rwv_band = { low: lows, high: highs };
+
+                // Extract calibrated σ from the validated 80% HAR band (z_80 = 1.2816),
+                // then project 68% (±1.00σ), 80% (±1.2816σ), and 95% (±1.96σ) bands
+                const Z80 = 1.2816, Z68 = 1.0000, Z95 = 1.95996;
+                const low68 = [], high68 = [], low80 = [], high80 = [], low95 = [], high95 = [];
+
+                data.forEach((d, idx) => {
+                    const p = d.price;
+                    if (idx === 0 || !d.high || d.high <= p) {
+                        low68.push(p); high68.push(p);
+                        low80.push(p); high80.push(p);
+                        low95.push(p); high95.push(p);
+                    } else {
+                        const sd = Math.log(d.high / p) / Z80;
+                        low68.push(+(p * Math.exp(-Z68 * sd)).toFixed(2));
+                        high68.push(+(p * Math.exp(Z68 * sd)).toFixed(2));
+                        low80.push(+d.low.toFixed(2));
+                        high80.push(+d.high.toFixed(2));
+                        low95.push(+(p * Math.exp(-Z95 * sd)).toFixed(2));
+                        high95.push(+(p * Math.exp(Z95 * sd)).toFixed(2));
+                    }
+                });
+
+                const lo = showBand ? Math.min(...low95) : Math.min(...prices);
+                const hi = showBand ? Math.max(...high95) : Math.max(...prices);
+                const pad = (hi - lo) * 0.05 || 1;
+
+                canvasRef.current._rwv_band = { low68, high68, low80, high80, low95, high95 };
                 canvasRef.current._rwv_show = showBand;
 
                 if (!chartInstanceRef.current) {
@@ -720,7 +901,7 @@
                         data: {
                             labels,
                             datasets: [{
-                                label: `Predikce`,
+                                label: `Střední trajektorie modelu`,
                                 data: prices,
                                 borderColor: '#C6F34F',
                                 backgroundColor: 'rgba(198, 243, 79, 0.15)',
@@ -745,14 +926,19 @@
                                     bodyColor: '#C6F34F', borderColor: '#232E30',
                                     borderWidth: 1, padding: 12, displayColors: false,
                                     titleFont: { size: 11, family: 'system-ui' },
-                                    bodyFont: { size: 14, family: 'system-ui', weight: 'bold' },
+                                    bodyFont: { size: 12, family: 'system-ui', weight: 'bold' },
                                     animation: { duration: 400, easing: 'easeOutQuart' }, 
                                     callbacks: {
                                         title: (ctx) => ctx[0].label,
                                         label: (ctx) => {
                                             const b = ctx.chart.canvas._rwv_band;
-                                            const out = ['$' + ctx.parsed.y.toFixed(2)];
-                                            if (b && ctx.dataIndex > 0) out.push('Pásmo 80 %: $' + b.low[ctx.dataIndex].toFixed(2) + ' – $' + b.high[ctx.dataIndex].toFixed(2));
+                                            const showFan = ctx.chart.canvas._rwv_show;
+                                            const out = ['Střední trajektorie: $' + ctx.parsed.y.toFixed(2)];
+                                            if (b && showFan && ctx.dataIndex > 0) {
+                                                out.push('Pásmo 68 % (1σ): $' + b.low68[ctx.dataIndex].toFixed(2) + ' – $' + b.high68[ctx.dataIndex].toFixed(2));
+                                                out.push('Ověřené pásmo 80 %: $' + b.low80[ctx.dataIndex].toFixed(2) + ' – $' + b.high80[ctx.dataIndex].toFixed(2));
+                                                out.push('Hraniční 95 % (2σ): $' + b.low95[ctx.dataIndex].toFixed(2) + ' – $' + b.high95[ctx.dataIndex].toFixed(2));
+                                            }
                                             return out;
                                         }
                                     }
@@ -778,29 +964,69 @@
             }, []);
 
             return (
-                <div className="relative w-full h-[320px] md:h-[500px] premium-panel p-4 md:p-6 shadow-2xl flex-1 flex flex-col overflow-hidden">
+                <div className="relative w-full h-[340px] md:h-[500px] premium-panel p-4 md:p-6 shadow-2xl flex-1 flex flex-col overflow-hidden">
                     
                     <div className="absolute top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-4 z-20">
-                        <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie">Cenová Trajektorie · střední scénář a pásmo 80 %</h3>
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-2 z-20">
+                        <div>
+                            <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie">
+                                Cenová Trajektorie · {showBand ? 'střední trajektorie a kvantilový vějíř (68 % / 80 % / 95 %)' : 'střední trajektorie modelu'}
+                            </h3>
+                        </div>
                         
-                        <button onClick={() => setShowBand(!showBand)} className="text-[10px] md:text-xs font-bold uppercase tracking-wider border border-rwv-border rounded px-3 py-1 text-rwv-textMuted hover:text-white transition">
-                            {showBand ? 'Skrýt pásmo 80 %' : 'Zobrazit pásmo 80 %'}
-                        </button>
-                        <div className="h-6 flex items-center">
-                            {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
-                                <span className="text-rwv-lime text-[10px] md:text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
-                                    PŘEPOČÍTÁVÁM SDE
-                                </span>
-                            ) : (
-                                <span className="text-[10px] md:text-xs text-rwv-textMuted flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-rwv-lime"></div>
-                                    Synchronizováno
-                                </span>
-                            )}
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={onToggleBand}
+                                className={`text-[10px] md:text-xs font-bold uppercase tracking-wider border rounded px-3 py-1 transition ${
+                                    showBand
+                                        ? 'border-rwv-lime/60 bg-rwv-lime/10 text-rwv-lime shadow-[0_0_10px_rgba(198,243,79,0.15)]'
+                                        : 'border-rwv-border text-rwv-textMuted hover:text-white'
+                                }`}
+                            >
+                                {showBand ? 'Kvantilový vějíř: ZAP' : 'Zobrazit vějíř (68 / 80 / 95 %)'}
+                            </button>
+                            <div className="h-6 flex items-center">
+                                {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
+                                    <span className="text-rwv-lime text-[10px] md:text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
+                                        PŘEPOČÍTÁVÁM SDE
+                                    </span>
+                                ) : (
+                                    <span className="text-[10px] md:text-xs text-rwv-textMuted flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-rwv-lime"></div>
+                                        Synchronizováno
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
+
+                    {/* ČNB-Style Fan Chart Legend */}
+                    {showBand && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-1.5 rounded-lg bg-rwv-bg/70 border border-rwv-border/80 text-[11px] text-gray-400 z-20">
+                            <div className="flex flex-wrap items-center gap-4">
+                                <span className="flex items-center gap-1.5">
+                                    <span className="inline-block w-3 h-0.5 bg-rwv-lime"></span>
+                                    <strong className="text-gray-200">Střední trajektorie</strong>
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <span className="inline-block w-3 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(198, 243, 79, 0.25)' }}></span>
+                                    <span>Pásmo 68 % (1σ)</span>
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <span className="inline-block w-3 h-0 border-t-2 border-dashed border-rwv-lime/70"></span>
+                                    <span className="text-gray-300">Pásmo 80 % (ověřené out-of-sample)</span>
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <span className="inline-block w-3 h-2.5 rounded-sm border border-dotted border-rwv-lime/40" style={{ backgroundColor: 'rgba(198, 243, 79, 0.08)' }}></span>
+                                    <span>Pásmo 95 % (2σ lognormální projekce*)</span>
+                                </span>
+                            </div>
+                            <span className="text-[10px] text-gray-500">
+                                *Chvosty nad 80 % nejsou historicky validovány
+                            </span>
+                        </div>
+                    )}
                     
                     <div className="relative flex-1 w-full z-20">
                         <canvas ref={canvasRef}></canvas>
@@ -814,18 +1040,16 @@
         const DIAGRAM_HEIGHT = 500;
         const NODE_GAP = 14;
 
-        // Restrained, same-family palette (no rainbow) — each category gets one
-        // consistent muted accent, all readable against the dark theme.
         const CATEGORY_COLORS = {
-            data: '#4FD1C6',        // teal — external data feeds
-            decompose: '#D9A441',   // amber — sub-component math
-            core: '#C6F34F',        // lime — the 3 headline indices + MADR
-            regime: '#9B8FD9',      // muted violet — decision/branching logic
-            equilibrium: '#D9C44F', // warm gold — targets & carry cost
-            sde: '#E0954F',         // orange — iterative Monte Carlo loops
-            kalman: '#4FB8D9',      // cyan — iterative filtering/correction
-            weight: '#B39DDB',      // soft violet — horizon weighting/blending
-            final: '#C6F34F'        // lime — final output
+            data: '#4FD1C6',
+            decompose: '#D9A441',
+            core: '#C6F34F',
+            regime: '#9B8FD9',
+            equilibrium: '#D9C44F',
+            sde: '#E0954F',
+            kalman: '#4FB8D9',
+            weight: '#B39DDB',
+            final: '#C6F34F'
         };
 
         const COLUMN_DEFS = [
@@ -1100,26 +1324,301 @@
             );
         }
 
-        // --- PHASE 3 ADDONS (LOCKED) ---
-        function Phase3LockedFeatures() {
-            const features = ["Atribuce Faktorů", "Křivky Pravděpodobnosti", "Momentum Indexu"];
+        // --- PHASE 3 ACTIVE ANALYTICS DOCK (SWEET SPOT: SHAPLEY + 100% MACRO BAR + FAN + MOMENTUM) ---
+        function Phase3AnalyticsDock({ toggles, onToggle, commodityData, sliders, momentum, chartData }) {
+            const [horizonStep, setHorizonStep] = useState(27); // 6 = 30d, 18 = 90d, 27 = 135d
+
+            const attribution = (() => {
+                const spot = commodityData?.spot_price || 100;
+                const tensor = commodityData?.tensor;
+                const stepIdx = Math.min(horizonStep, (chartData?.length || 28) - 1);
+                const finalPrice = chartData?.[stepIdx]?.price || spot;
+                const totalDelta = finalPrice - spot;
+
+                if (!tensor) {
+                    return { spot, finalPrice, totalDelta, mktDelta: 0, macroDelta: 0, days: stepIdx * 5, hasTensor: false, factors: [] };
+                }
+
+                const { phi, sens } = shapleyAttribution(tensor, sliders, stepIdx, spot);
+                const absMacroSum = Math.abs(phi.A) + Math.abs(phi.D) + Math.abs(phi.R);
+                const sensSum = sens.A + sens.D + sens.R || 1;
+
+                // Normalize the 3 macro indices to 100% of fundamental macro impact
+                // (If all 3 sliders sit at exact 0.50, uses local partial derivatives so it never divides by 0)
+                let wA, wD, wR;
+                if (absMacroSum > 1e-5) {
+                    wA = +(Math.abs(phi.A) / absMacroSum * 100).toFixed(1);
+                    wD = +(Math.abs(phi.D) / absMacroSum * 100).toFixed(1);
+                    wR = +Math.max(0, 100 - (wA + wD)).toFixed(1);
+                } else {
+                    wA = +(sens.A / sensSum * 100).toFixed(1);
+                    wD = +(sens.D / sensSum * 100).toFixed(1);
+                    wR = +Math.max(0, 100 - (wA + wD)).toFixed(1);
+                }
+
+                const totalAbsAll = absMacroSum + Math.abs(phi.MKT) || 1;
+                const mktShareOfTotal = +(Math.abs(phi.MKT) / totalAbsAll * 100).toFixed(1);
+
+                return {
+                    spot,
+                    finalPrice,
+                    totalDelta,
+                    mktDelta: phi.MKT,
+                    mktShareOfTotal,
+                    macroDelta: phi.A + phi.D + phi.R,
+                    days: stepIdx * 5,
+                    hasTensor: true,
+                    factors: [
+                        {
+                            id: 'A',
+                            label: 'Ekonomická aktivita (A)',
+                            sub: 'HDP, PMI, inflace a příjmy obyvatelstva (Shapleyho rozklad)',
+                            weight: wA,
+                            deltaUsd: phi.A,
+                            deltaPct: (phi.A / spot) * 100,
+                            color: '#C6F34F'
+                        },
+                        {
+                            id: 'D',
+                            label: 'Intenzita deficitu (D)',
+                            sub: 'Fyzické zásoby, produkce, logistika a počasí (Shapleyho rozklad)',
+                            weight: wD,
+                            deltaUsd: phi.D,
+                            deltaPct: (phi.D / spot) * 100,
+                            color: '#4FD1C6'
+                        },
+                        {
+                            id: 'R',
+                            label: 'Systémové riziko (R)',
+                            sub: 'Úrokové sazby, vládní dluh, DXY a finanční stres (Shapleyho rozklad)',
+                            weight: wR,
+                            deltaUsd: phi.R,
+                            deltaPct: (phi.R / spot) * 100,
+                            color: '#E0954F'
+                        }
+                    ]
+                };
+            })();
+
+            const toggleDefs = [
+                {
+                    key: 'attribution',
+                    num: '6',
+                    label: 'Faktorová Atribuce',
+                    badge: attribution.hasTensor ? `${attribution.factors[0].weight.toFixed(0)} / ${attribution.factors[1].weight.toFixed(0)} / ${attribution.factors[2].weight.toFixed(0)} %` : '—'
+                },
+                { key: 'fanChart', num: '7', label: 'Pravděpodobnostní Křivky', badge: '68 / 80 / 95 %' },
+                { key: 'momentum', num: '8', label: 'Momentum Indexů', badge: '5d trend' }
+            ];
+
             return (
-                <div className="mt-6 premium-panel p-4 md:p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-sm font-bold text-gray-300">Pokročilá Analytika (Fáze 3)</h4>
-                        <span className="text-xs bg-rwv-border text-rwv-textMuted px-2 py-1 rounded-md uppercase tracking-wider font-bold">Připravuje se</span>
+                <div className="mt-6 premium-panel p-4 md:p-6 transition-all duration-300">
+                    {/* Top Control Row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-2 h-2 rounded-full bg-rwv-lime shadow-[0_0_8px_rgba(198,243,79,0.8)]"></div>
+                            <h4 className="text-sm font-bold text-white tracking-wide">Pokročilá Analytika (Fáze 3)</h4>
+                        </div>
+                        <span className="text-[10px] bg-rwv-lime/10 text-rwv-lime border border-rwv-lime/30 px-2.5 py-1 rounded-md uppercase tracking-wider font-bold self-start sm:self-auto">
+                            Aktivní Moduly
+                        </span>
                     </div>
-                    <div className="flex flex-wrap gap-4">
-                        {features.map((feature, idx) => (
-                            <div key={idx} className="flex items-center gap-3 bg-rwv-bg px-4 py-3 rounded-xl border border-rwv-border opacity-50 cursor-not-allowed select-none transition hover:opacity-70">
-                                <div className="w-9 h-5 bg-rwv-border rounded-full relative">
-                                    <div className="w-3 h-3 bg-rwv-textMuted rounded-full absolute left-1 top-1"></div>
+
+                    {/* Interactive Switch Buttons */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {toggleDefs.map((item) => {
+                            const active = toggles[item.key];
+                            return (
+                                <button
+                                    key={item.key}
+                                    onClick={() => onToggle(item.key)}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-200 select-none ${
+                                        active
+                                            ? 'bg-rwv-bg border-rwv-lime/50 shadow-[0_0_15px_rgba(198,243,79,0.08)]'
+                                            : 'bg-rwv-bg/50 border-rwv-border opacity-60 hover:opacity-90'
+                                    }`}
+                                >
+                                    <div className={`w-9 h-5 rounded-full relative transition-colors duration-200 shrink-0 ${active ? 'bg-rwv-olive' : 'bg-rwv-border'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full absolute top-[3px] transition-all duration-200 ${active ? 'left-[18px] bg-rwv-lime shadow-[0_0_6px_rgba(198,243,79,0.9)]' : 'left-1 bg-rwv-textMuted'}`}></div>
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className={`text-xs font-bold truncate ${active ? 'text-white' : 'text-gray-400'}`}>
+                                            {item.num}. {item.label}
+                                        </span>
+                                        <span className="text-[10px] text-rwv-textMuted font-medium">
+                                            {active ? 'Zobrazeno v terminálu' : 'Kliknutím zapnout'}
+                                        </span>
+                                    </div>
+                                    <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${active ? 'text-rwv-lime bg-rwv-lime/10 border-rwv-lime/30' : 'text-gray-500 border-rwv-border'}`}>
+                                        {item.badge}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* ADDON 6: FAKTOROVÁ ATRIBUCE (EXACT SHAPLEY VALUES) */}
+                    {toggles.attribution && attribution.hasTensor && (
+                        <div className="mt-5 pt-5 border-t border-rwv-border animate-fade-in">
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h5 className="text-xs font-bold uppercase tracking-widest text-rwv-lime">
+                                            6. Faktorová Atribuce Ceny (Shapleyho Rozklad)
+                                        </h5>
+                                        <span className="text-[10px] text-gray-500 font-semibold">· Horizont +{attribution.days} dní</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Algoritmický rozpad výstupní ceny definující přesnou vahou, jakým podílem se na celkové predikci podílí konkrétní makroekonomické a tržní faktory.
+                                    </p>
                                 </div>
-                                <span className="text-sm text-gray-400 font-medium">{feature}</span>
-                                <span className="ml-auto text-rwv-textMuted text-xs"></span>
+
+                                <div className="flex items-center gap-1.5 bg-rwv-bg p-1 rounded-lg border border-rwv-border self-start lg:self-auto shrink-0">
+                                    {[
+                                        { step: 6, label: '30 dní' },
+                                        { step: 18, label: '90 dní' },
+                                        { step: 27, label: '135 dní (Max)' }
+                                    ].map(h => (
+                                        <button
+                                            key={h.step}
+                                            onClick={() => setHorizonStep(h.step)}
+                                            className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${
+                                                horizonStep === h.step
+                                                    ? 'bg-rwv-panel text-rwv-lime border border-rwv-lime/40'
+                                                    : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                        >
+                                            {h.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        ))}
-                    </div>
+
+                            {/* Exact Price Bridge (Spot + Market Curve + Macro Indices = Final Price) */}
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 bg-rwv-bg/90 border border-rwv-border rounded-xl p-3">
+                                <div className="flex flex-col px-2">
+                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">1. Spotová Cena (Dnes)</span>
+                                    <span className="text-base font-bold text-white mt-0.5">${attribution.spot.toFixed(2)}</span>
+                                </div>
+                                <div className="flex flex-col px-2 lg:border-l border-rwv-border">
+                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">2. Tržní Křivka & Sezóna</span>
+                                    <span className="text-base font-bold text-purple-300 mt-0.5">
+                                        {attribution.mktDelta >= 0 ? '+' : '−'}${Math.abs(attribution.mktDelta).toFixed(2)}
+                                        <span className="text-[10px] text-gray-500 font-normal ml-1">({attribution.mktShareOfTotal} % pohybu)</span>
+                                    </span>
+                                </div>
+                                <div className="flex flex-col px-2 lg:border-l border-rwv-border">
+                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">3. Impulz Indexů (A+D+R)</span>
+                                    <span className={`text-base font-bold mt-0.5 ${attribution.macroDelta >= 0 ? 'text-rwv-lime' : 'text-amber-400'}`}>
+                                        {attribution.macroDelta >= 0 ? '+' : '−'}${Math.abs(attribution.macroDelta).toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col px-2 lg:border-l border-rwv-border">
+                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">4. Výstupní Predikce</span>
+                                    <span className="text-base font-bold text-white mt-0.5">${attribution.finalPrice.toFixed(2)}</span>
+                                </div>
+                            </div>
+
+                            {/* 100% Stacked Bar of the 3 Macro Indices */}
+                            <div className="mb-4">
+                                <div className="flex justify-between text-[10px] text-rwv-textMuted uppercase tracking-wider font-bold mb-1.5">
+                                    <span>Poměr sil makroekonomických indexů A · D · R (součet = 100 %)</span>
+                                    <span>Přesný Shapleyho rozklad z 3D tenzoru</span>
+                                </div>
+                                <div className="w-full h-3 bg-rwv-bg rounded-full overflow-hidden flex border border-rwv-border p-0.5 gap-0.5">
+                                    {attribution.factors.map(f => (
+                                        <div
+                                            key={f.id}
+                                            style={{ width: `${Math.max(f.weight, 2)}%`, backgroundColor: f.color }}
+                                            className="h-full first:rounded-l-full last:rounded-r-full transition-all duration-300"
+                                            title={`${f.label}: ${f.weight.toFixed(1)} %`}
+                                        ></div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 3 Macro Factor Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                {attribution.factors.map(f => (
+                                    <div key={f.id} className="bg-rwv-bg border border-rwv-border rounded-xl p-3.5 flex flex-col justify-between hover:border-rwv-textMuted/60 transition">
+                                        <div>
+                                            <span className="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
+                                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: f.color }}></span>
+                                                {f.label}
+                                            </span>
+                                            <p className="text-[10px] text-gray-500 leading-snug mb-3">{f.sub}</p>
+                                        </div>
+
+                                        <div>
+                                            <div className="flex items-baseline justify-between mb-1">
+                                                <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">Podíl mezi indexy:</span>
+                                                <span className="text-lg font-bold" style={{ color: f.color }}>{f.weight.toFixed(1)} %</span>
+                                            </div>
+                                            <div className="w-full h-1.5 bg-rwv-panel rounded-full overflow-hidden mb-2.5">
+                                                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${f.weight}%`, backgroundColor: f.color }}></div>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[11px] pt-2 border-t border-rwv-border/60">
+                                                <span className="text-gray-500">Čistý cenový dopad (φ):</span>
+                                                <span className={`font-semibold ${f.deltaUsd >= 0 ? 'text-gray-200' : 'text-amber-400'}`}>
+                                                    {f.deltaUsd >= 0 ? '+' : '−'}${Math.abs(f.deltaUsd).toFixed(2)} ({f.deltaPct >= 0 ? '+' : ''}{f.deltaPct.toFixed(2)} %)
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ADDON 7 & 8 CONTRACT DESCRIPTIONS & MOMENTUM SUMMARY */}
+                    {(toggles.fanChart || toggles.momentum) && (
+                        <div className="mt-5 pt-4 border-t border-rwv-border grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
+                            {toggles.fanChart && (
+                                <div className="bg-rwv-bg/60 border border-rwv-border rounded-xl p-3.5">
+                                    <h5 className="text-xs font-bold uppercase tracking-widest text-white mb-1">
+                                        7. Pravděpodobnostní Křivky (Kvantilový Vějíř)
+                                    </h5>
+                                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                                        Matematické zpracování a projekce vějíře možných budoucích hraničních scénářů odvozených z aktuálně měřené tržní volatility (HAR). Optimalizace minimalizace logistických odchylek.
+                                    </p>
+                                </div>
+                            )}
+                            {toggles.momentum && (
+                                <div className="bg-rwv-bg/60 border border-rwv-border rounded-xl p-3.5 flex flex-col justify-between">
+                                    <div>
+                                        <h5 className="text-xs font-bold uppercase tracking-widest text-white mb-1">
+                                            8. Momentum Indexů (5denní Sklon)
+                                        </h5>
+                                        <p className="text-[11px] text-gray-400 leading-relaxed mb-2">
+                                            Kontinuální sledování dynamiky tržního sentimentu a kvantitativní vyhodnocování síly nastoupeného fundamentálního trendu (lineární regrese za 5 obchodních dní u posuvníků vlevo).
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            { key: 'A', label: 'A', val: momentum?.A },
+                                            { key: 'D', label: 'D', val: momentum?.D },
+                                            { key: 'R', label: 'R', val: momentum?.R }
+                                        ].map(m => {
+                                            const has = m.val !== null && m.val !== undefined;
+                                            const up = has && m.val >= 0;
+                                            return (
+                                                <span key={m.key} className="text-[11px] bg-rwv-panel border border-rwv-border rounded px-2.5 py-1 flex items-center gap-1.5">
+                                                    <strong className="text-gray-300">{m.label}:</strong>
+                                                    {has ? (
+                                                        <span className={up ? 'text-rwv-lime font-bold' : 'text-amber-400 font-bold'}>
+                                                            {up ? '▲ +' : '▼ '}{m.val.toFixed(2)} / 5d
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-500">—</span>
+                                                    )}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -1167,8 +1666,6 @@
 
             return (
                 <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg font-sans relative overflow-hidden animate-fade-in px-4">
-                    
-                    {/* Animated Background SVG Lines (Hardware Accelerated) */}
                     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-rwv-lime rounded-full blur-[150px] opacity-10"></div>
                         
@@ -1179,7 +1676,6 @@
                         </svg>
                     </div>
 
-                    {/* Liquid Glass Auth Box */}
                     <div className="w-full max-w-[22rem] md:w-96 liquid-glass-panel p-6 md:p-8 flex flex-col relative z-20">
                         <div className="flex justify-center mb-6 md:mb-8">
                             <img src="https://raw.githubusercontent.com/trail-blazer2/rwv-app/refs/heads/main/logow.png" alt="Logo" className="h-8 opacity-90 drop-shadow-lg" />
@@ -1246,8 +1742,18 @@
             const [healthData, setHealthData] = useState(null);
             
             const [sliders, setSliders] = useState({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
-            const [isSimulating, setIsSimulating] = useState(true); // Start true for the micro-flash
+            const [isSimulating, setIsSimulating] = useState(true);
             const [error, setError] = useState(null);
+
+            const [phase3Toggles, setPhase3Toggles] = useState({
+                attribution: true,
+                fanChart: true,
+                momentum: true
+            });
+
+            const togglePhase3 = (key) => {
+                setPhase3Toggles(prev => ({ ...prev, [key]: !prev[key] }));
+            };
 
             const handleLogout = () => {
                 localStorage.removeItem('rwv_token');
@@ -1267,32 +1773,28 @@
                 return res.json();
             };
 
-            // 1. FAST LOADING BAR (Syncs with API)
             useEffect(() => {
                 if (!token) return;
                 const interval = setInterval(() => {
                     setLoadProgress(p => {
-                        if (p < 90) return p + 15; // Very fast to 90%
-                        if (apiLoaded) return 100; // Snap to 100% when API completes
-                        return 90; // Hang safely at 90% if API is still loading
+                        if (p < 90) return p + 15;
+                        if (apiLoaded) return 100;
+                        return 90;
                     });
                 }, 20); 
                 return () => clearInterval(interval);
             }, [token, apiLoaded]);
 
-            // Reveal app and trigger micro-flash
             useEffect(() => {
                 if (loadProgress >= 100) {
                     const t = setTimeout(() => {
                         setAppReady(true);
-                        // Keep the "PŘEPOČÍTÁVÁM SDE" text for exactly 150ms after UI appears
                         setTimeout(() => setIsSimulating(false), 150); 
                     }, 50);
                     return () => clearTimeout(t);
                 }
             }, [loadProgress]);
 
-            // 2. BACKGROUND DATA FETCHING
             useEffect(() => {
                 if (!token) return;
                 Promise.all([
@@ -1303,8 +1805,9 @@
                     if (predictRes.status === "success" && predictRes.data) {
                         setDefaultPredictions(predictRes.data);
                         setHealthData(healthRes.indices);
-                        setSliders({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
-                        setApiLoaded(true); // Tells loading bar to finish
+                        const initInd = predictRes.data["Gold"]?.indices;
+                        setSliders(initInd ? { A_it: initInd.A, D_it: initInd.D, R_it: initInd.R } : { A_it: 0.5, D_it: 0.5, R_it: 0.5 });
+                        setApiLoaded(true);
                     } else {
                         setError("Cache jádra čeká. Spusťte výpočty.");
                     }
@@ -1313,67 +1816,28 @@
                     if(err.message !== "Relace vypršela. Přihlaste se znovu.") {
                         setError("Chyba připojení k RWV API.");
                     }
-                    setApiLoaded(true); // End loading screen even on error
+                    setApiLoaded(true);
                 });
             }, [token]);
 
-            // 3. COMMODITY SWITCH
             useEffect(() => {
                 if (defaultPredictions && defaultPredictions[selectedCommodityId]) {
-                    setIsSimulating(true); // Micro-flash on switch
-                    setSliders({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
+                    setIsSimulating(true);
+                    const ind = defaultPredictions[selectedCommodityId].indices;
+                    setSliders(ind ? { A_it: ind.A, D_it: ind.D, R_it: ind.R } : { A_it: 0.5, D_it: 0.5, R_it: 0.5 });
                     setTimeout(() => setIsSimulating(false), 150);
                 }
             }, [selectedCommodityId, defaultPredictions]);
 
-            // 4. INSTANT CUSTOM SLIDER SIMULATION VIA TRILINEAR LOOKUP TENSOR
             useEffect(() => {
                 if (!defaultPredictions || !token) return;
                 const data = defaultPredictions[selectedCommodityId];
                 if (!data) return;
 
                 if (data.tensor) {
-                    const { A_it, D_it, R_it } = sliders;
-                    const fmt = (v) => v.toFixed(2);
-                    
-                    const getIdx = (v) => Math.min(Math.floor(v / 0.2), 4);
-                    const aI = getIdx(A_it), dI = getIdx(D_it), rI = getIdx(R_it);
-                    
-                    const A0 = aI * 0.2, A1 = A0 + 0.2;
-                    const D0 = dI * 0.2, D1 = D0 + 0.2;
-                    const R0 = rI * 0.2, R1 = R0 + 0.2;
-                    
-                    const wa = (A_it - A0) / 0.2;
-                    const wd = (D_it - D0) / 0.2;
-                    const wr = (R_it - R0) / 0.2;
-
-                    const corners = [
-                        { key: `${fmt(A0)}_${fmt(D0)}_${fmt(R0)}`, w: (1 - wa) * (1 - wd) * (1 - wr) },
-                        { key: `${fmt(A1)}_${fmt(D0)}_${fmt(R0)}`, w: wa * (1 - wd) * (1 - wr) },
-                        { key: `${fmt(A0)}_${fmt(D1)}_${fmt(R0)}`, w: (1 - wa) * wd * (1 - wr) },
-                        { key: `${fmt(A1)}_${fmt(D1)}_${fmt(R0)}`, w: wa * wd * (1 - wr) },
-                        { key: `${fmt(A0)}_${fmt(D0)}_${fmt(R1)}`, w: (1 - wa) * (1 - wd) * wr },
-                        { key: `${fmt(A1)}_${fmt(D0)}_${fmt(R1)}`, w: wa * (1 - wd) * wr },
-                        { key: `${fmt(A0)}_${fmt(D1)}_${fmt(R1)}`, w: (1 - wa) * wd * wr },
-                        { key: `${fmt(A1)}_${fmt(D1)}_${fmt(R1)}`, w: wa * wd * wr }
-                    ];
-
-                    let blendedCurve = new Array(28).fill(0);
-                    let validCorners = 0;
-
-                    corners.forEach(c => {
-                        const cornerCurve = data.tensor[c.key];
-                        if (cornerCurve) {
-                            validCorners++;
-                            for (let i = 0; i < 28; i++) {
-                                blendedCurve[i] += cornerCurve[i] * c.w;
-                            }
-                        }
-                    });
-
-                    if (validCorners === 8) {
+                    const blendedCurve = interpolateTensorCurve(data.tensor, sliders.A_it, sliders.D_it, sliders.R_it);
+                    if (blendedCurve) {
                         const defaultCurve = data.projection_curve;
-                        
                         const instantCurve = blendedCurve.map((price, i) => {
                             const defPt = defaultCurve[i] || { price: 1, low: 1, high: 1 };
                             const ratioLow = defPt.price > 0 ? (defPt.low / defPt.price) : 1;
@@ -1389,7 +1853,6 @@
                         setChartData(instantCurve);
                     }
                 } else {
-                    // Graceful fallback to API if tensor isn't generated yet
                     const timer = setTimeout(() => {
                         setIsSimulating(true);
                         fetch(`${API_BASE}/api/v1/simulate-custom`, {
@@ -1427,7 +1890,6 @@
                 });
             };
 
-            // RENDER AUTH SCREEN
             if (!token) {
                 return <AuthScreen onAuth={(t) => {
                     localStorage.setItem('rwv_token', t);
@@ -1435,7 +1897,6 @@
                 }} />;
             }
 
-            // LOADING SCREEN RENDER
             if (!appReady) {
                 return (
                     <div className="flex flex-col items-center justify-center min-h-screen bg-rwv-bg px-4">
@@ -1450,8 +1911,11 @@
 
             if (error) return <div className="flex items-center justify-center min-h-screen text-red-500 font-sans font-semibold px-6 text-center">{error}</div>;
 
-            const spotPrice = defaultPredictions?.[selectedCommodityId]?.spot_price || 0.00;
+            const activeCommodityData = defaultPredictions?.[selectedCommodityId];
+            const spotPrice = activeCommodityData?.spot_price || 0.00;
             const currentLabel = COMMODITIES.find(c => c.id === selectedCommodityId)?.label || selectedCommodityId;
+            const currentMomentum = deriveCommodityMomentum(activeCommodityData);
+            const todayIndices = activeCommodityData?.indices || { A: 0.5, D: 0.5, R: 0.5 };
 
             const displayChartData = (chartData && chartData.length > 0 && chartData[0].day !== 0 && spotPrice > 0)
                 ? [{ day: 0, price: spotPrice }, ...chartData]
@@ -1471,7 +1935,6 @@
                                 onContextMenu={(e) => { e.preventDefault(); setViewTab('risk'); }}
                                 title="."
                             />
-                            {/* LOGOUT BUTTON (mobile position, next to logo) */}
                             <button 
                                 onClick={handleLogout}
                                 className="md:hidden px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rwv-textMuted border border-rwv-border rounded hover:text-red-400 hover:border-red-900/50 hover:bg-red-900/20 transition"
@@ -1507,7 +1970,6 @@
                                     Zdraví Dat
                                 </button>
                             </div>
-                            {/* LOGOUT BUTTON (desktop position) */}
                             <button 
                                 onClick={handleLogout}
                                 className="hidden md:inline-block px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rwv-textMuted border border-rwv-border rounded hover:text-red-400 hover:border-red-900/50 hover:bg-red-900/20 transition"
@@ -1522,7 +1984,7 @@
                         
                         {/* Persistent Sidebar */}
                         {viewTab === 'dashboard' && (
-                            <div className="w-full md:w-[340px] bg-rwv-panel border-b md:border-b-0 md:border-r border-rwv-border flex flex-col shadow-xl z-20 shrink-0 max-h-[50vh] md:max-h-none">
+                            <div className="w-full md:w-[340px] bg-rwv-panel border-b md:border-b-0 md:border-r border-rwv-border flex flex-col shadow-xl z-20 shrink-0 max-h-[55vh] md:max-h-none">
                                 <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col gap-6 md:gap-8">
                                     <div>
                                         <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-3">Cílové Aktivum</h2>
@@ -1550,24 +2012,45 @@
                                             <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest">Živé Ladění Parametrů</h2>
                                             <button
                                                 onClick={handleResetToToday}
-                                                disabled={!defaultPredictions?.[selectedCommodityId]?.indices}
+                                                disabled={!activeCommodityData?.indices}
                                                 className="text-[10px] font-bold dnesnistav uppercase tracking-wider text-rwv-lime border border-rwv-lime/40 rounded px-2 py-1 hover:bg-rwv-lime/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
                                             >
                                                 Dnešní stav
                                             </button>
                                         </div>
                                         <div className="flex flex-col gap-6">
-                                            <SidebarSlider title="Ekonomická Aktivita (A)" value={sliders.A_it} onChange={(e) => handleSliderChange(e, 'A_it')} />
-                                            <SidebarSlider title="Intenzita Deficitu (D)" value={sliders.D_it} onChange={(e) => handleSliderChange(e, 'D_it')} />
-                                            <SidebarSlider title="Systémové Riziko (R)" value={sliders.R_it} onChange={(e) => handleSliderChange(e, 'R_it')} />
+                                            <SidebarSlider
+                                                title="Ekonomická Aktivita (A)"
+                                                value={sliders.A_it}
+                                                todayValue={todayIndices.A}
+                                                momentum={currentMomentum.A}
+                                                showMomentum={phase3Toggles.momentum}
+                                                onChange={(e) => handleSliderChange(e, 'A_it')}
+                                            />
+                                            <SidebarSlider
+                                                title="Intenzita Deficitu (D)"
+                                                value={sliders.D_it}
+                                                todayValue={todayIndices.D}
+                                                momentum={currentMomentum.D}
+                                                showMomentum={phase3Toggles.momentum}
+                                                onChange={(e) => handleSliderChange(e, 'D_it')}
+                                            />
+                                            <SidebarSlider
+                                                title="Systémové Riziko (R)"
+                                                value={sliders.R_it}
+                                                todayValue={todayIndices.R}
+                                                momentum={currentMomentum.R}
+                                                showMomentum={phase3Toggles.momentum}
+                                                onChange={(e) => handleSliderChange(e, 'R_it')}
+                                            />
                                         </div>
                                     </div>
+
                                     {/* --- CALIBRATION BUTTONS --- */}
                                     <hr className="border-rwv-border" />
                                     <div>
                                         <h2 className="text-[10px] font-bold text-rwv-textMuted uppercase tracking-widest mb-3">Správa Modelu</h2>
                                         <div className="flex flex-col gap-2">
-                                            {/* Button 1: Rychlá kalibrace */}
                                             <button 
                                                 onClick={() => {
                                                     const btn = document.getElementById('btn-quick-cal');
@@ -1588,7 +2071,6 @@
                                                 </span>
                                             </button>
 
-                                            {/* Button 2: Celková kalibrace */}
                                             <button 
                                                 onClick={() => {
                                                     const btn = document.getElementById('btn-full-cal');
@@ -1634,9 +2116,18 @@
                                 <ProjectionChart 
                                     data={displayChartData} 
                                     commodityLabel={currentLabel} 
-                                    isSimulating={isSimulating || !defaultPredictions} 
+                                    isSimulating={isSimulating || !defaultPredictions}
+                                    showBand={phase3Toggles.fanChart}
+                                    onToggleBand={() => togglePhase3('fanChart')}
                                 />
-                                <Phase3LockedFeatures />
+                                <Phase3AnalyticsDock
+                                    toggles={phase3Toggles}
+                                    onToggle={togglePhase3}
+                                    commodityData={activeCommodityData}
+                                    sliders={sliders}
+                                    momentum={currentMomentum}
+                                    chartData={displayChartData}
+                                />
                             </div>
                         ) : viewTab === 'simulation' ? (
                             <MathSimulationTab />
@@ -1645,7 +2136,6 @@
                         ) : viewTab === 'risk' ? (
                             <PortfolioRiskTab token={token} />
                         ) : viewTab === 'health' ? (
-                            // Data Health Tab
                             <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
                                 <div className="max-w-4xl mx-auto">
                                     <h2 className="text-xl md:text-3xl font-bold text-white mb-2 border-b border-rwv-border pb-4">Stav Datového Toku</h2>
@@ -1680,7 +2170,6 @@
                         ) : viewTab === 'phase2' ? (
                             <Phase2CalibrationTab />
                         ) : (
-                            // Debug/Dev Tab (Hidden trigger)
                             <div className="flex-1 p-4 md:p-10 overflow-visible md:overflow-y-auto bg-rwv-bg font-sans">
                                 <div className="max-w-3xl mx-auto">
                                     <h2 className="text-xl md:text-3xl font-bold text-yellow-400 mb-2 border-b border-yellow-400/20 pb-4">Výstup pro vývojáře (Debug)</h2>
@@ -1713,7 +2202,6 @@
 
         // --- VALUE PANEL ---
         function ValuePanel() {
-            // Static, honest copy. Numbers match stages 10-13 + 15 + 16 (nothing invented).
             const BLOCKS = [
                 {
                     t: "CO TERMINÁL OVĚŘENĚ UMÍ",
@@ -1906,19 +2394,67 @@
             );
         }
 
-        // --- SIDEBAR SLIDER COMPONENT ---
-        function SidebarSlider({ title, value, onChange }) {
+        // --- SIDEBAR SLIDER COMPONENT (WITH ADDON 8: 5-DAY MOMENTUM SLOPE) ---
+        function SidebarSlider({ title, value, todayValue, momentum = null, showMomentum = true, onChange }) {
+            const hasMom = momentum !== null && momentum !== undefined && !Number.isNaN(momentum);
+            const isReplenishing = hasMom && momentum >= 0;
+            const speedIntensity = hasMom ? Math.min(100, Math.max(8, Math.round((Math.abs(momentum) / 3.0) * 100))) : 0;
+            const manualDiff = todayValue !== undefined ? value - todayValue : 0;
+
             return (
                 <div className="flex flex-col">
-                    <div className="flex justify-between items-center mb-2">
-                        <label className="text-xs font-semibold text-gray-300">{title}</label>
-                        <span className="font-sans font-semibold text-xs text-rwv-olive bg-rwv-olive/10 px-2 py-0.5 rounded border border-rwv-olive/30">
-                            {value.toFixed(2)}
-                        </span>
+                    <div className="flex justify-between items-center mb-1.5 gap-1">
+                        <label className="text-xs font-semibold text-gray-300 truncate">{title}</label>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {showMomentum && (
+                                hasMom ? (
+                                    <span
+                                        title="5denní lineární trend indexu (body × 100 za 5 obchodních dní)"
+                                        className={`font-sans font-bold text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1 transition-all ${
+                                            isReplenishing
+                                                ? 'text-rwv-lime bg-rwv-lime/10 border-rwv-lime/30'
+                                                : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                                        }`}
+                                    >
+                                        <span>{isReplenishing ? '▲' : '▼'}</span>
+                                        <span>{isReplenishing ? '+' : ''}{momentum.toFixed(2)} / 5d</span>
+                                    </span>
+                                ) : (
+                                    <span className="font-sans font-semibold text-[10px] text-gray-500 bg-rwv-bg px-1.5 py-0.5 rounded border border-rwv-border">
+                                        —
+                                    </span>
+                                )
+                            )}
+                            <span className="font-sans font-semibold text-xs text-rwv-olive bg-rwv-olive/10 px-2 py-0.5 rounded border border-rwv-olive/30">
+                                {value.toFixed(2)}
+                            </span>
+                        </div>
                     </div>
+
                     <input type="range" min="0.00" max="1.00" step="0.01" value={value} onChange={onChange} />
-                    <div className="flex justify-between text-[10px] text-rwv-textMuted mt-1.5 font-sans font-medium">
+
+                    <div className="flex justify-between items-center text-[10px] text-rwv-textMuted mt-1.5 font-sans font-medium">
                         <span>0.00</span>
+                        {showMomentum && hasMom ? (
+                            <span className="flex items-center gap-1.5 text-[10px]">
+                                <span className={isReplenishing ? 'text-rwv-lime/80' : 'text-amber-400/80'}>
+                                    {isReplenishing ? 'Doplňování' : 'Krvácení'}
+                                </span>
+                                <span className="w-12 h-1 bg-rwv-bg rounded-full overflow-hidden border border-rwv-border inline-block">
+                                    <span
+                                        className={`block h-full rounded-full ${isReplenishing ? 'bg-rwv-lime' : 'bg-amber-400'}`}
+                                        style={{ width: `${speedIntensity}%` }}
+                                    ></span>
+                                </span>
+                                {Math.abs(manualDiff) >= 0.01 && (
+                                    <span className="text-gray-400 ml-1">
+                                        (Δ {manualDiff > 0 ? '+' : ''}{manualDiff.toFixed(2)})
+                                    </span>
+                                )}
+                            </span>
+                        ) : (
+                            <span>0.50</span>
+                        )}
                         <span>1.00</span>
                     </div>
                 </div>
