@@ -2046,26 +2046,7 @@
                                                 </span>
                                             </button>
 
-                                            <button 
-                                                onClick={() => {
-                                                    const btn = document.getElementById('btn-full-cal');
-                                                    const origText = btn.innerHTML;
-                                                    btn.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-rwv-olive animate-pulse"></div> Optimalizuji váhy...`;
-                                                    fetch(`${API_BASE}/api/v1/full-calibration`, { method: 'POST', headers: getAuthHeaders() })
-                                                        .then(res => res.json())
-                                                        .then(data => {
-                                                            btn.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-rwv-lime shadow-[0_0_8px_rgba(198,243,79,0.8)]"></div> Úspěšně zkalibrováno`;
-                                                            setTimeout(() => btn.innerHTML = origText, 4000);
-                                                        })
-                                                        .catch(() => { alert("Chyba API při kalibraci."); btn.innerHTML = origText; });
-                                                }}
-                                                title="Spustí ML optimalizátor (L-BFGS-B). Jemně upraví 23 hlavních vah (s_wg, beta atd.) podle nejnovějších dat s využitím historické kotvy."
-                                                className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold bg-rwv-panel border border-rwv-border hover:border-rwv-lime/50 hover:text-white text-gray-400 transition"
-                                            >
-                                                <span id="btn-full-cal" className="flex items-center gap-2">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-gray-600"></div> Celková kalibrace
-                                                </span>
-                                            </button>
+                                            <FullCalibrationButton token={token} />
                                         </div>
                                     </div>
                                 </div>
@@ -2368,6 +2349,47 @@
                 </div>
             );
         }
+
+
+        function FullCalibrationButton({ token }) {
+            const [st, setSt] = useState({ state: 'idle' });
+            const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+            const poll = () => fetch(`${API_BASE}/api/v1/calibration-status`, { headers })
+                .then(r => r.json()).then(setSt).catch(() => {});
+            const prevState = useRef(null);
+            useEffect(() => { poll(); }, []);                       // resumes after page reload
+            useEffect(() => {
+                if (st.state !== 'running') return;
+                const t = setInterval(poll, 3000);
+                return () => clearInterval(t);
+            }, [st.state]);
+            useEffect(() => {                                      // reload data when it finishes
+                if (prevState.current === 'running' && st.state === 'done') setTimeout(() => window.location.reload(), 2500);
+                prevState.current = st.state;
+            }, [st.state]);
+            const start = () => {
+                if (st.state === 'running') return;
+                setSt({ state: 'running', progress: 1, message: 'Spouštím…' });
+                fetch(`${API_BASE}/api/v1/full-calibration`, { method: 'POST', headers }).then(poll).catch(() => {});
+            };
+            const running = st.state === 'running';
+            return (
+                <button onClick={start} disabled={running}
+                    title="Přepočítá váhy vstupů (θ_A, θ_D, θ_R, B_a, B_d, B_r, K_m) jen na nových datech od poslední kalibrace, ukotveno k předchozím vahám."
+                    className="relative overflow-hidden w-full text-left px-3 py-2 rounded-lg text-sm font-bold bg-rwv-panel border border-rwv-border hover:border-rwv-lime/50 text-gray-300 transition">
+                    {running && <div className="absolute inset-y-0 left-0 bg-rwv-olive/30 transition-all duration-700" style={{ width: `${st.progress || 0}%` }}></div>}
+                    <span className="relative flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${running ? 'bg-rwv-olive animate-pulse' : st.state === 'error' ? 'bg-red-400' : 'bg-rwv-lime'}`}></div>
+                        {running ? `Kalibruji… ${st.progress || 0} %` : 'Celková kalibrace'}
+                    </span>
+                    {st.message && st.state !== 'idle' && (
+                        <span className="relative block text-[10px] text-rwv-textMuted mt-1 font-normal leading-snug">{st.message}</span>
+                    )}
+                </button>
+            );
+        }
+
+
 
         // --- SIDEBAR SLIDER COMPONENT (MUTED OLIVE/GRAY PALETTE MATCHING UI) ---
         function SidebarSlider({ title, value, momentum = null, showMomentum = true, onChange }) {
