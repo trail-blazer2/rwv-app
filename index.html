@@ -673,6 +673,7 @@
             }
         };
         // --- ADDON 7: ČNB-STYLE QUANTILE FAN CHART PLUGIN (68% / 80% / 95%) ---
+        // --- ADDON 7: ČNB-STYLE QUANTILE FAN CHART PLUGIN (68% / 80% / 95%) ---
         const rangeBandPlugin = {
             id: 'rwvBand',
             beforeDatasetsDraw: (chart) => {
@@ -701,11 +702,11 @@
                         ctx.lineTo(xs.getPixelForValue(i), ys.getPixelForValue(b.low95[i]));
                     }
                     ctx.closePath();
-                    ctx.fillStyle = 'rgba(198, 243, 79, 0.055)';
+                    ctx.fillStyle = 'rgba(117, 135, 73, 0.08)';
                     ctx.fill();
 
                     ctx.setLineDash([2, 4]);
-                    ctx.strokeStyle = 'rgba(198, 243, 79, 0.18)';
+                    ctx.strokeStyle = 'rgba(117, 135, 73, 0.25)';
                     ctx.lineWidth = 1;
                     ctx.stroke();
                 }
@@ -722,15 +723,15 @@
                     }
                     ctx.closePath();
                     ctx.setLineDash([]);
-                    ctx.fillStyle = 'rgba(198, 243, 79, 0.14)';
+                    ctx.fillStyle = 'rgba(198, 243, 79, 0.11)';
                     ctx.fill();
                 }
 
                 // 3) Validated 80% Out-of-Sample Boundary Lines (±1.2816σ)
                 if (b.high80 && b.low80) {
                     ctx.setLineDash([5, 4]);
-                    ctx.strokeStyle = 'rgba(198, 243, 79, 0.45)';
-                    ctx.lineWidth = 1.2;
+                    ctx.strokeStyle = 'rgba(198, 243, 79, 0.35)';
+                    ctx.lineWidth = 1;
 
                     ctx.beginPath();
                     b.high80.forEach((v, i) => {
@@ -808,7 +809,7 @@
                 );
                 return curve ? curve[step] : spot;
             };
-            const w = [1 / 3, 1 / 6, 1 / 3]; // Exact Shapley weights by |S| = 0, 1, 2 for n = 3
+            const w = [1 / 3, 1 / 6, 1 / 3];
             const phi = {};
             for (const k of keys) {
                 const others = keys.filter(x => x !== k);
@@ -819,9 +820,9 @@
                 }
                 phi[k] = v;
             }
-            phi.MKT = f(new Set()) - spot; // Curve / carry / season at neutral indices (0.5, 0.5, 0.5)
+            phi.MKT = f(new Set()) - spot;
 
-            // Local tangent sensitivity (L'Hôpital limit) if all sliders are parked at exact 0.50
+            // Local tangent sensitivity when sliders are parked at default 0.50
             const sens = {
                 A: Math.abs((interpolateTensorCurve(tensor, 0.55, 0.5, 0.5)?.[step] || spot) - (interpolateTensorCurve(tensor, 0.45, 0.5, 0.5)?.[step] || spot)),
                 D: Math.abs((interpolateTensorCurve(tensor, 0.5, 0.55, 0.5)?.[step] || spot) - (interpolateTensorCurve(tensor, 0.5, 0.45, 0.5)?.[step] || spot)),
@@ -830,16 +831,15 @@
             return { phi, sens };
         }
 
-        // --- HELPER: READ BACKEND MOMENTUM (WITH PRE-DEPLOY VOLATILITY ESTIMATE IF NEEDED) ---
+        // --- HELPER: READ BACKEND MOMENTUM ---
         function deriveCommodityMomentum(commodityData) {
-            if (!commodityData) return { A: null, D: null, R: null, isEstimate: false };
+            if (!commodityData) return { A: null, D: null, R: null };
             if (commodityData.momentum && commodityData.momentum.A !== undefined && commodityData.momentum.A !== null) {
-                return { ...commodityData.momentum, isEstimate: false };
+                return commodityData.momentum;
             }
-            // Pre-deploy estimate from live HAR vol & futures curve until Modal recalculates
             const ind = commodityData.indices;
             const vols = commodityData.vols;
-            if (!ind || !vols) return { A: null, D: null, R: null, isEstimate: true };
+            if (!ind || !vols) return { A: null, D: null, R: null };
 
             const fut = commodityData.fut_data || [];
             const basis = (fut.length >= 2 && fut[0].price > 0 && fut[1].price > 0)
@@ -848,12 +848,11 @@
             return {
                 A: +((ind.A - 0.5) * 1.8).toFixed(2),
                 D: +((ind.D - 0.5) * 2.1 + basis * 0.5).toFixed(2),
-                R: +(((vols.v5 / Math.max(vols.v22, 0.05)) - 1.0) * 1.6).toFixed(2),
-                isEstimate: true
+                R: +(((vols.v5 / Math.max(vols.v22, 0.05)) - 1.0) * 1.6).toFixed(2)
             };
         }
 
-        // --- DASHBOARD CHART COMPONENT (WITH ČNB QUANTILE FAN CURVES) ---
+        // --- DASHBOARD CHART COMPONENT (HEIGHT-LOCKED AT 320px / 500px) ---
         function ProjectionChart({ data, commodityLabel, isSimulating, showBand, onToggleBand }) {
             const canvasRef = useRef(null);
             const chartInstanceRef = useRef(null);
@@ -864,8 +863,6 @@
                 const labels = data.map(d => d.day === 0 ? "Dnes" : `+${d.day} dní`);
                 const prices = data.map(d => d.price);
 
-                // Extract calibrated σ from the validated 80% HAR band (z_80 = 1.2816),
-                // then project 68% (±1.00σ), 80% (±1.2816σ), and 95% (±1.96σ) bands
                 const Z80 = 1.2816, Z68 = 1.0000, Z95 = 1.95996;
                 const low68 = [], high68 = [], low80 = [], high80 = [], low95 = [], high95 = [];
 
@@ -964,14 +961,14 @@
             }, []);
 
             return (
-                <div className="relative w-full h-[340px] md:h-[500px] premium-panel p-4 md:p-6 shadow-2xl flex-1 flex flex-col overflow-hidden">
+                <div className="relative w-full h-[320px] md:h-[500px] shrink-0 premium-panel p-4 md:p-6 shadow-2xl flex flex-col overflow-hidden">
                     
                     <div className="absolute top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-2 z-20">
                         <div>
                             <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie">
-                                Cenová Trajektorie · {showBand ? 'střední trajektorie a kvantilový vějíř (68 % / 80 % / 95 %)' : 'střední trajektorie modelu'}
+                                Cenová Trajektorie · {showBand ? 'střední trajektorie a kvantilový vějíř (68 % / 80 % / 95 %)' : 'střední scénář a pásmo 80 %'}
                             </h3>
                         </div>
                         
@@ -980,11 +977,11 @@
                                 onClick={onToggleBand}
                                 className={`text-[10px] md:text-xs font-bold uppercase tracking-wider border rounded px-3 py-1 transition ${
                                     showBand
-                                        ? 'border-rwv-lime/60 bg-rwv-lime/10 text-rwv-lime shadow-[0_0_10px_rgba(198,243,79,0.15)]'
+                                        ? 'border-rwv-olive bg-rwv-olive/15 text-gray-200'
                                         : 'border-rwv-border text-rwv-textMuted hover:text-white'
                                 }`}
                             >
-                                {showBand ? 'Kvantilový vějíř: ZAP' : 'Zobrazit vějíř (68 / 80 / 95 %)'}
+                                {showBand ? 'Skrýt pásma pravděpodobnosti' : 'Zobrazit pásmo 80 % / Vějíř'}
                             </button>
                             <div className="h-6 flex items-center">
                                 {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
@@ -1003,26 +1000,26 @@
 
                     {/* ČNB-Style Fan Chart Legend */}
                     {showBand && (
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-1.5 rounded-lg bg-rwv-bg/70 border border-rwv-border/80 text-[11px] text-gray-400 z-20">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-1.5 rounded-lg bg-rwv-bg/70 border border-rwv-border text-[11px] text-gray-400 z-20">
                             <div className="flex flex-wrap items-center gap-4">
                                 <span className="flex items-center gap-1.5">
                                     <span className="inline-block w-3 h-0.5 bg-rwv-lime"></span>
                                     <strong className="text-gray-200">Střední trajektorie</strong>
                                 </span>
                                 <span className="flex items-center gap-1.5">
-                                    <span className="inline-block w-3 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(198, 243, 79, 0.25)' }}></span>
+                                    <span className="inline-block w-3 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(198, 243, 79, 0.20)' }}></span>
                                     <span>Pásmo 68 % (1σ)</span>
                                 </span>
                                 <span className="flex items-center gap-1.5">
-                                    <span className="inline-block w-3 h-0 border-t-2 border-dashed border-rwv-lime/70"></span>
-                                    <span className="text-gray-300">Pásmo 80 % (ověřené out-of-sample)</span>
+                                    <span className="inline-block w-3 h-0 border-t-2 border-dashed border-rwv-olive"></span>
+                                    <span className="text-gray-300">Pásmo 80 % (ověřené)</span>
                                 </span>
                                 <span className="flex items-center gap-1.5">
-                                    <span className="inline-block w-3 h-2.5 rounded-sm border border-dotted border-rwv-lime/40" style={{ backgroundColor: 'rgba(198, 243, 79, 0.08)' }}></span>
-                                    <span>Pásmo 95 % (2σ lognormální projekce*)</span>
+                                    <span className="inline-block w-3 h-2.5 rounded-sm border border-dotted border-rwv-olive/50" style={{ backgroundColor: 'rgba(117, 135, 73, 0.12)' }}></span>
+                                    <span>Pásmo 95 % (2σ projekce*)</span>
                                 </span>
                             </div>
-                            <span className="text-[10px] text-gray-500">
+                            <span className="text-[10px] text-rwv-textMuted">
                                 *Chvosty nad 80 % nejsou historicky validovány
                             </span>
                         </div>
@@ -1324,9 +1321,9 @@
             );
         }
 
-        // --- PHASE 3 ACTIVE ANALYTICS DOCK (SWEET SPOT: SHAPLEY + 100% MACRO BAR + FAN + MOMENTUM) ---
+        // --- PHASE 3 ANALYTICS DOCK (SUBTLE OLIVE/LIME PALETTE, OFF BY DEFAULT) ---
         function Phase3AnalyticsDock({ toggles, onToggle, commodityData, sliders, momentum, chartData }) {
-            const [horizonStep, setHorizonStep] = useState(27); // 6 = 30d, 18 = 90d, 27 = 135d
+            const [horizonStep, setHorizonStep] = useState(27);
 
             const attribution = (() => {
                 const spot = commodityData?.spot_price || 100;
@@ -1343,8 +1340,6 @@
                 const absMacroSum = Math.abs(phi.A) + Math.abs(phi.D) + Math.abs(phi.R);
                 const sensSum = sens.A + sens.D + sens.R || 1;
 
-                // Normalize the 3 macro indices to 100% of fundamental macro impact
-                // (If all 3 sliders sit at exact 0.50, uses local partial derivatives so it never divides by 0)
                 let wA, wD, wR;
                 if (absMacroSum > 1e-5) {
                     wA = +(Math.abs(phi.A) / absMacroSum * 100).toFixed(1);
@@ -1359,6 +1354,7 @@
                 const totalAbsAll = absMacroSum + Math.abs(phi.MKT) || 1;
                 const mktShareOfTotal = +(Math.abs(phi.MKT) / totalAbsAll * 100).toFixed(1);
 
+                // Cohesive dark/olive/lime shades matching the main UI
                 return {
                     spot,
                     finalPrice,
@@ -1372,103 +1368,86 @@
                         {
                             id: 'A',
                             label: 'Ekonomická aktivita (A)',
-                            sub: 'HDP, PMI, inflace a příjmy obyvatelstva (Shapleyho rozklad)',
+                            sub: 'HDP, PMI, inflace a příjmy obyvatelstva',
                             weight: wA,
                             deltaUsd: phi.A,
                             deltaPct: (phi.A / spot) * 100,
-                            color: '#C6F34F'
+                            color: '#C6F34F' // rwv-lime
                         },
                         {
                             id: 'D',
                             label: 'Intenzita deficitu (D)',
-                            sub: 'Fyzické zásoby, produkce, logistika a počasí (Shapleyho rozklad)',
+                            sub: 'Fyzické zásoby, produkce, logistika a počasí',
                             weight: wD,
                             deltaUsd: phi.D,
                             deltaPct: (phi.D / spot) * 100,
-                            color: '#4FD1C6'
+                            color: '#758749' // rwv-olive
                         },
                         {
                             id: 'R',
                             label: 'Systémové riziko (R)',
-                            sub: 'Úrokové sazby, vládní dluh, DXY a finanční stres (Shapleyho rozklad)',
+                            sub: 'Úrokové sazby, vládní dluh, DXY a finanční stres',
                             weight: wR,
                             deltaUsd: phi.R,
                             deltaPct: (phi.R / spot) * 100,
-                            color: '#E0954F'
+                            color: '#4C6368' // muted slate-teal border tone
                         }
                     ]
                 };
             })();
 
+            const anyActive = toggles.attribution || toggles.fanChart || toggles.momentum;
+
             const toggleDefs = [
-                {
-                    key: 'attribution',
-                    num: '6',
-                    label: 'Faktorová Atribuce',
-                    badge: attribution.hasTensor ? `${attribution.factors[0].weight.toFixed(0)} / ${attribution.factors[1].weight.toFixed(0)} / ${attribution.factors[2].weight.toFixed(0)} %` : '—'
-                },
-                { key: 'fanChart', num: '7', label: 'Pravděpodobnostní Křivky', badge: '68 / 80 / 95 %' },
-                { key: 'momentum', num: '8', label: 'Momentum Indexů', badge: '5d trend' }
+                { key: 'attribution', label: 'Faktorová Atribuce' },
+                { key: 'fanChart', label: 'Pravděpodobnostní Křivky' },
+                { key: 'momentum', label: 'Momentum Indexů' }
             ];
 
             return (
-                <div className="mt-6 premium-panel p-4 md:p-6 transition-all duration-300">
-                    {/* Top Control Row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-2 h-2 rounded-full bg-rwv-lime shadow-[0_0_8px_rgba(198,243,79,0.8)]"></div>
-                            <h4 className="text-sm font-bold text-white tracking-wide">Pokročilá Analytika (Fáze 3)</h4>
-                        </div>
-                        <span className="text-[10px] bg-rwv-lime/10 text-rwv-lime border border-rwv-lime/30 px-2.5 py-1 rounded-md uppercase tracking-wider font-bold self-start sm:self-auto">
-                            Aktivní Moduly
+                <div className="mt-6 shrink-0 premium-panel p-4 md:p-5 transition-all duration-300">
+                    <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-sm font-bold text-gray-300">Pokročilá Analytika (Fáze 3)</h4>
+                        <span className="text-xs bg-rwv-border text-rwv-textMuted px-2 py-1 rounded-md uppercase tracking-wider font-bold">
+                            {anyActive ? 'Aktivní' : 'Připraveno'}
                         </span>
                     </div>
 
-                    {/* Interactive Switch Buttons */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* Clean Toggle Buttons Matching Original Aesthetic */}
+                    <div className="flex flex-wrap gap-4">
                         {toggleDefs.map((item) => {
                             const active = toggles[item.key];
                             return (
                                 <button
                                     key={item.key}
                                     onClick={() => onToggle(item.key)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all duration-200 select-none ${
+                                    className={`flex items-center gap-3 bg-rwv-bg px-4 py-3 rounded-xl border transition select-none ${
                                         active
-                                            ? 'bg-rwv-bg border-rwv-lime/50 shadow-[0_0_15px_rgba(198,243,79,0.08)]'
-                                            : 'bg-rwv-bg/50 border-rwv-border opacity-60 hover:opacity-90'
+                                            ? 'border-rwv-olive/70 text-gray-200'
+                                            : 'border-rwv-border text-gray-400 opacity-75 hover:opacity-100'
                                     }`}
                                 >
-                                    <div className={`w-9 h-5 rounded-full relative transition-colors duration-200 shrink-0 ${active ? 'bg-rwv-olive' : 'bg-rwv-border'}`}>
-                                        <div className={`w-3.5 h-3.5 rounded-full absolute top-[3px] transition-all duration-200 ${active ? 'left-[18px] bg-rwv-lime shadow-[0_0_6px_rgba(198,243,79,0.9)]' : 'left-1 bg-rwv-textMuted'}`}></div>
+                                    <div className={`w-9 h-5 rounded-full relative transition-colors ${active ? 'bg-rwv-olive/40 border border-rwv-olive' : 'bg-rwv-border'}`}>
+                                        <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${active ? 'left-5 bg-rwv-lime' : 'left-1 bg-rwv-textMuted'}`}></div>
                                     </div>
-                                    <div className="flex flex-col min-w-0">
-                                        <span className={`text-xs font-bold truncate ${active ? 'text-white' : 'text-gray-400'}`}>
-                                            {item.num}. {item.label}
-                                        </span>
-                                        <span className="text-[10px] text-rwv-textMuted font-medium">
-                                            {active ? 'Zobrazeno v terminálu' : 'Kliknutím zapnout'}
-                                        </span>
-                                    </div>
-                                    <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${active ? 'text-rwv-lime bg-rwv-lime/10 border-rwv-lime/30' : 'text-gray-500 border-rwv-border'}`}>
-                                        {item.badge}
-                                    </span>
+                                    <span className="text-sm font-medium">{item.label}</span>
                                 </button>
                             );
                         })}
                     </div>
 
-                    {/* ADDON 6: FAKTOROVÁ ATRIBUCE (EXACT SHAPLEY VALUES) */}
+                    {/* ADDON 6: FAKTOROVÁ ATRIBUCE */}
                     {toggles.attribution && attribution.hasTensor && (
                         <div className="mt-5 pt-5 border-t border-rwv-border animate-fade-in">
                             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h5 className="text-xs font-bold uppercase tracking-widest text-rwv-lime">
-                                            6. Faktorová Atribuce Ceny (Shapleyho Rozklad)
+                                        <h5 className="text-xs font-bold uppercase tracking-widest text-gray-200">
+                                            6. Faktorová Atribuce Ceny
                                         </h5>
-                                        <span className="text-[10px] text-gray-500 font-semibold">· Horizont +{attribution.days} dní</span>
+                                        <span className="text-[10px] text-rwv-textMuted font-semibold">· Horizont +{attribution.days} dní</span>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-1">
+                                    <p className="text-xs text-rwv-textMuted mt-1">
                                         Algoritmický rozpad výstupní ceny definující přesnou vahou, jakým podílem se na celkové predikci podílí konkrétní makroekonomické a tržní faktory.
                                     </p>
                                 </div>
@@ -1477,14 +1456,14 @@
                                     {[
                                         { step: 6, label: '30 dní' },
                                         { step: 18, label: '90 dní' },
-                                        { step: 27, label: '135 dní (Max)' }
+                                        { step: 27, label: '135 dní' }
                                     ].map(h => (
                                         <button
                                             key={h.step}
                                             onClick={() => setHorizonStep(h.step)}
                                             className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${
                                                 horizonStep === h.step
-                                                    ? 'bg-rwv-panel text-rwv-lime border border-rwv-lime/40'
+                                                    ? 'bg-rwv-panel text-gray-200 border border-rwv-olive/50'
                                                     : 'text-gray-500 hover:text-gray-300'
                                             }`}
                                         >
@@ -1494,38 +1473,37 @@
                                 </div>
                             </div>
 
-                            {/* Exact Price Bridge (Spot + Market Curve + Macro Indices = Final Price) */}
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 bg-rwv-bg/90 border border-rwv-border rounded-xl p-3">
+                            {/* Price Bridge */}
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 bg-rwv-bg border border-rwv-border rounded-xl p-3">
                                 <div className="flex flex-col px-2">
-                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">1. Spotová Cena (Dnes)</span>
-                                    <span className="text-base font-bold text-white mt-0.5">${attribution.spot.toFixed(2)}</span>
+                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">Spotová Cena</span>
+                                    <span className="text-base font-semibold text-white mt-0.5">${attribution.spot.toFixed(2)}</span>
                                 </div>
                                 <div className="flex flex-col px-2 lg:border-l border-rwv-border">
-                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">2. Tržní Křivka & Sezóna</span>
-                                    <span className="text-base font-bold text-purple-300 mt-0.5">
+                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">Tržní Křivka & Sezóna</span>
+                                    <span className="text-base font-semibold text-gray-300 mt-0.5">
                                         {attribution.mktDelta >= 0 ? '+' : '−'}${Math.abs(attribution.mktDelta).toFixed(2)}
-                                        <span className="text-[10px] text-gray-500 font-normal ml-1">({attribution.mktShareOfTotal} % pohybu)</span>
                                     </span>
                                 </div>
                                 <div className="flex flex-col px-2 lg:border-l border-rwv-border">
-                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">3. Impulz Indexů (A+D+R)</span>
-                                    <span className={`text-base font-bold mt-0.5 ${attribution.macroDelta >= 0 ? 'text-rwv-lime' : 'text-amber-400'}`}>
+                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">Impulz Indexů (A+D+R)</span>
+                                    <span className="text-base font-semibold text-rwv-olive mt-0.5">
                                         {attribution.macroDelta >= 0 ? '+' : '−'}${Math.abs(attribution.macroDelta).toFixed(2)}
                                     </span>
                                 </div>
                                 <div className="flex flex-col px-2 lg:border-l border-rwv-border">
-                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">4. Výstupní Predikce</span>
-                                    <span className="text-base font-bold text-white mt-0.5">${attribution.finalPrice.toFixed(2)}</span>
+                                    <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">Výstupní Predikce</span>
+                                    <span className="text-base font-semibold text-white mt-0.5">${attribution.finalPrice.toFixed(2)}</span>
                                 </div>
                             </div>
 
-                            {/* 100% Stacked Bar of the 3 Macro Indices */}
+                            {/* 100% Stacked Bar */}
                             <div className="mb-4">
                                 <div className="flex justify-between text-[10px] text-rwv-textMuted uppercase tracking-wider font-bold mb-1.5">
-                                    <span>Poměr sil makroekonomických indexů A · D · R (součet = 100 %)</span>
-                                    <span>Přesný Shapleyho rozklad z 3D tenzoru</span>
+                                    <span>Rozpad vah makroekonomických indexů A · D · R (100 %)</span>
+                                    <span>Shapleyho rozklad z 3D tenzoru</span>
                                 </div>
-                                <div className="w-full h-3 bg-rwv-bg rounded-full overflow-hidden flex border border-rwv-border p-0.5 gap-0.5">
+                                <div className="w-full h-2.5 bg-rwv-bg rounded-full overflow-hidden flex border border-rwv-border p-0.5 gap-0.5">
                                     {attribution.factors.map(f => (
                                         <div
                                             key={f.id}
@@ -1537,29 +1515,29 @@
                                 </div>
                             </div>
 
-                            {/* 3 Macro Factor Cards */}
+                            {/* 3 Factor Cards */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 {attribution.factors.map(f => (
-                                    <div key={f.id} className="bg-rwv-bg border border-rwv-border rounded-xl p-3.5 flex flex-col justify-between hover:border-rwv-textMuted/60 transition">
+                                    <div key={f.id} className="bg-rwv-bg border border-rwv-border rounded-xl p-3.5 flex flex-col justify-between">
                                         <div>
-                                            <span className="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
+                                            <span className="text-xs font-bold text-gray-200 flex items-center gap-2 mb-1">
                                                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: f.color }}></span>
                                                 {f.label}
                                             </span>
-                                            <p className="text-[10px] text-gray-500 leading-snug mb-3">{f.sub}</p>
+                                            <p className="text-[10px] text-rwv-textMuted leading-snug mb-3">{f.sub}</p>
                                         </div>
 
                                         <div>
                                             <div className="flex items-baseline justify-between mb-1">
-                                                <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">Podíl mezi indexy:</span>
-                                                <span className="text-lg font-bold" style={{ color: f.color }}>{f.weight.toFixed(1)} %</span>
+                                                <span className="text-[10px] uppercase tracking-wider text-rwv-textMuted font-bold">Váha faktoru:</span>
+                                                <span className="text-base font-bold text-gray-200">{f.weight.toFixed(1)} %</span>
                                             </div>
                                             <div className="w-full h-1.5 bg-rwv-panel rounded-full overflow-hidden mb-2.5">
                                                 <div className="h-full rounded-full transition-all duration-300" style={{ width: `${f.weight}%`, backgroundColor: f.color }}></div>
                                             </div>
                                             <div className="flex items-center justify-between text-[11px] pt-2 border-t border-rwv-border/60">
-                                                <span className="text-gray-500">Čistý cenový dopad (φ):</span>
-                                                <span className={`font-semibold ${f.deltaUsd >= 0 ? 'text-gray-200' : 'text-amber-400'}`}>
+                                                <span className="text-rwv-textMuted">Cenový dopad:</span>
+                                                <span className="font-semibold text-gray-300">
                                                     {f.deltaUsd >= 0 ? '+' : '−'}${Math.abs(f.deltaUsd).toFixed(2)} ({f.deltaPct >= 0 ? '+' : ''}{f.deltaPct.toFixed(2)} %)
                                                 </span>
                                             </div>
@@ -1570,42 +1548,42 @@
                         </div>
                     )}
 
-                    {/* ADDON 7 & 8 CONTRACT DESCRIPTIONS & MOMENTUM SUMMARY */}
+                    {/* ADDON 7 & 8 DESCRIPTIONS */}
                     {(toggles.fanChart || toggles.momentum) && (
                         <div className="mt-5 pt-4 border-t border-rwv-border grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
                             {toggles.fanChart && (
-                                <div className="bg-rwv-bg/60 border border-rwv-border rounded-xl p-3.5">
-                                    <h5 className="text-xs font-bold uppercase tracking-widest text-white mb-1">
-                                        7. Pravděpodobnostní Křivky (Kvantilový Vějíř)
+                                <div className="bg-rwv-bg border border-rwv-border rounded-xl p-3.5">
+                                    <h5 className="text-xs font-bold uppercase tracking-widest text-gray-200 mb-1">
+                                        7. Pravděpodobnostní Křivky
                                     </h5>
-                                    <p className="text-[11px] text-gray-400 leading-relaxed">
-                                        Matematické zpracování a projekce vějíře možných budoucích hraničních scénářů odvozených z aktuálně měřené tržní volatility (HAR). Optimalizace minimalizace logistických odchylek.
+                                    <p className="text-[11px] text-rwv-textMuted leading-relaxed">
+                                        Matematické zpracování a projekce vějíře možných budoucích hraničních scénářů odvozených z aktuálně měřené tržní volatility. Optimalizace minimalizace logistických odchylek.
                                     </p>
                                 </div>
                             )}
                             {toggles.momentum && (
-                                <div className="bg-rwv-bg/60 border border-rwv-border rounded-xl p-3.5 flex flex-col justify-between">
+                                <div className="bg-rwv-bg border border-rwv-border rounded-xl p-3.5 flex flex-col justify-between">
                                     <div>
-                                        <h5 className="text-xs font-bold uppercase tracking-widest text-white mb-1">
-                                            8. Momentum Indexů (5denní Sklon)
+                                        <h5 className="text-xs font-bold uppercase tracking-widest text-gray-200 mb-1">
+                                            8. Momentum Indexů
                                         </h5>
-                                        <p className="text-[11px] text-gray-400 leading-relaxed mb-2">
-                                            Kontinuální sledování dynamiky tržního sentimentu a kvantitativní vyhodnocování síly nastoupeného fundamentálního trendu (lineární regrese za 5 obchodních dní u posuvníků vlevo).
+                                        <p className="text-[11px] text-rwv-textMuted leading-relaxed mb-2">
+                                            Kontinuální sledování dynamiky tržního sentimentu a kvantitativní vyhodnocování síly nastoupeného fundamentálního trendu (zobrazeno u posuvníků v levém panelu).
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {[
-                                            { key: 'A', label: 'A', val: momentum?.A },
-                                            { key: 'D', label: 'D', val: momentum?.D },
-                                            { key: 'R', label: 'R', val: momentum?.R }
+                                            { key: 'A', label: 'Aktivita (A)', val: momentum?.A },
+                                            { key: 'D', label: 'Deficit (D)', val: momentum?.D },
+                                            { key: 'R', label: 'Riziko (R)', val: momentum?.R }
                                         ].map(m => {
                                             const has = m.val !== null && m.val !== undefined;
                                             const up = has && m.val >= 0;
                                             return (
                                                 <span key={m.key} className="text-[11px] bg-rwv-panel border border-rwv-border rounded px-2.5 py-1 flex items-center gap-1.5">
-                                                    <strong className="text-gray-300">{m.label}:</strong>
+                                                    <span className="text-rwv-textMuted">{m.label}:</span>
                                                     {has ? (
-                                                        <span className={up ? 'text-rwv-lime font-bold' : 'text-amber-400 font-bold'}>
+                                                        <span className={up ? 'text-rwv-olive font-bold' : 'text-gray-400 font-bold'}>
                                                             {up ? '▲ +' : '▼ '}{m.val.toFixed(2)} / 5d
                                                         </span>
                                                     ) : (
@@ -1741,14 +1719,16 @@
             const [chartData, setChartData] = useState([]);
             const [healthData, setHealthData] = useState(null);
             
+            // Sliders default to 0.50 on startup
             const [sliders, setSliders] = useState({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
             const [isSimulating, setIsSimulating] = useState(true);
             const [error, setError] = useState(null);
 
+            // All 3 Phase 3 addons turned OFF at startup
             const [phase3Toggles, setPhase3Toggles] = useState({
-                attribution: true,
-                fanChart: true,
-                momentum: true
+                attribution: false,
+                fanChart: false,
+                momentum: false
             });
 
             const togglePhase3 = (key) => {
@@ -1805,8 +1785,7 @@
                     if (predictRes.status === "success" && predictRes.data) {
                         setDefaultPredictions(predictRes.data);
                         setHealthData(healthRes.indices);
-                        const initInd = predictRes.data["Gold"]?.indices;
-                        setSliders(initInd ? { A_it: initInd.A, D_it: initInd.D, R_it: initInd.R } : { A_it: 0.5, D_it: 0.5, R_it: 0.5 });
+                        setSliders({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
                         setApiLoaded(true);
                     } else {
                         setError("Cache jádra čeká. Spusťte výpočty.");
@@ -1820,11 +1799,11 @@
                 });
             }, [token]);
 
+            // Reset sliders to 0.50 on commodity switch
             useEffect(() => {
                 if (defaultPredictions && defaultPredictions[selectedCommodityId]) {
                     setIsSimulating(true);
-                    const ind = defaultPredictions[selectedCommodityId].indices;
-                    setSliders(ind ? { A_it: ind.A, D_it: ind.D, R_it: ind.R } : { A_it: 0.5, D_it: 0.5, R_it: 0.5 });
+                    setSliders({ A_it: 0.5, D_it: 0.5, R_it: 0.5 });
                     setTimeout(() => setIsSimulating(false), 150);
                 }
             }, [selectedCommodityId, defaultPredictions]);
@@ -1915,7 +1894,6 @@
             const spotPrice = activeCommodityData?.spot_price || 0.00;
             const currentLabel = COMMODITIES.find(c => c.id === selectedCommodityId)?.label || selectedCommodityId;
             const currentMomentum = deriveCommodityMomentum(activeCommodityData);
-            const todayIndices = activeCommodityData?.indices || { A: 0.5, D: 0.5, R: 0.5 };
 
             const displayChartData = (chartData && chartData.length > 0 && chartData[0].day !== 0 && spotPrice > 0)
                 ? [{ day: 0, price: spotPrice }, ...chartData]
@@ -2022,7 +2000,6 @@
                                             <SidebarSlider
                                                 title="Ekonomická Aktivita (A)"
                                                 value={sliders.A_it}
-                                                todayValue={todayIndices.A}
                                                 momentum={currentMomentum.A}
                                                 showMomentum={phase3Toggles.momentum}
                                                 onChange={(e) => handleSliderChange(e, 'A_it')}
@@ -2030,7 +2007,6 @@
                                             <SidebarSlider
                                                 title="Intenzita Deficitu (D)"
                                                 value={sliders.D_it}
-                                                todayValue={todayIndices.D}
                                                 momentum={currentMomentum.D}
                                                 showMomentum={phase3Toggles.momentum}
                                                 onChange={(e) => handleSliderChange(e, 'D_it')}
@@ -2038,7 +2014,6 @@
                                             <SidebarSlider
                                                 title="Systémové Riziko (R)"
                                                 value={sliders.R_it}
-                                                todayValue={todayIndices.R}
                                                 momentum={currentMomentum.R}
                                                 showMomentum={phase3Toggles.momentum}
                                                 onChange={(e) => handleSliderChange(e, 'R_it')}
@@ -2055,7 +2030,7 @@
                                                 onClick={() => {
                                                     const btn = document.getElementById('btn-quick-cal');
                                                     const origText = btn.innerHTML;
-                                                    btn.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></div> Synchronizuji...`;
+                                                    btn.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-rwv-olive animate-pulse"></div> Synchronizuji...`;
                                                     fetch(`${API_BASE}/api/v1/trigger-engine`, { method: 'POST', headers: getAuthHeaders() })
                                                         .then(() => {
                                                             btn.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-rwv-lime"></div> Hotovo`;
@@ -2075,7 +2050,7 @@
                                                 onClick={() => {
                                                     const btn = document.getElementById('btn-full-cal');
                                                     const origText = btn.innerHTML;
-                                                    btn.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></div> Optimalizuji váhy...`;
+                                                    btn.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-rwv-olive animate-pulse"></div> Optimalizuji váhy...`;
                                                     fetch(`${API_BASE}/api/v1/full-calibration`, { method: 'POST', headers: getAuthHeaders() })
                                                         .then(res => res.json())
                                                         .then(data => {
@@ -2099,8 +2074,8 @@
 
                         {/* Dynamic Main View */}
                         {viewTab === 'dashboard' ? (
-                            <div className="flex-1 p-4 md:p-8 overflow-visible md:overflow-y-auto flex flex-col relative bg-rwv-bg">
-                                <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-3 md:gap-0 mb-6">
+                            <div className="flex-1 p-4 md:p-8 overflow-visible md:overflow-y-auto custom-scrollbar flex flex-col relative bg-rwv-bg">
+                                <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-3 md:gap-0 mb-6 shrink-0">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-rwv-textMuted text-sm font-medium">Trh /</span>
@@ -2394,30 +2369,29 @@
             );
         }
 
-        // --- SIDEBAR SLIDER COMPONENT (WITH ADDON 8: 5-DAY MOMENTUM SLOPE) ---
-        function SidebarSlider({ title, value, todayValue, momentum = null, showMomentum = true, onChange }) {
+        // --- SIDEBAR SLIDER COMPONENT (MUTED OLIVE/GRAY PALETTE MATCHING UI) ---
+        function SidebarSlider({ title, value, momentum = null, showMomentum = true, onChange }) {
             const hasMom = momentum !== null && momentum !== undefined && !Number.isNaN(momentum);
             const isReplenishing = hasMom && momentum >= 0;
             const speedIntensity = hasMom ? Math.min(100, Math.max(8, Math.round((Math.abs(momentum) / 3.0) * 100))) : 0;
-            const manualDiff = todayValue !== undefined ? value - todayValue : 0;
 
             return (
                 <div className="flex flex-col">
-                    <div className="flex justify-between items-center mb-1.5 gap-1">
+                    <div className="flex justify-between items-center mb-2 gap-1">
                         <label className="text-xs font-semibold text-gray-300 truncate">{title}</label>
                         <div className="flex items-center gap-1.5 shrink-0">
                             {showMomentum && (
                                 hasMom ? (
                                     <span
                                         title="5denní lineární trend indexu (body × 100 za 5 obchodních dní)"
-                                        className={`font-sans font-bold text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1 transition-all ${
+                                        className={`font-sans font-semibold text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1 ${
                                             isReplenishing
-                                                ? 'text-rwv-lime bg-rwv-lime/10 border-rwv-lime/30'
-                                                : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                                                ? 'text-rwv-olive bg-rwv-olive/10 border-rwv-olive/30'
+                                                : 'text-gray-400 bg-rwv-bg border-rwv-border'
                                         }`}
                                     >
                                         <span>{isReplenishing ? '▲' : '▼'}</span>
-                                        <span>{isReplenishing ? '+' : ''}{momentum.toFixed(2)} / 5d</span>
+                                        <span>{isReplenishing ? '+' : ''}{momentum.toFixed(2)}</span>
                                     </span>
                                 ) : (
                                     <span className="font-sans font-semibold text-[10px] text-gray-500 bg-rwv-bg px-1.5 py-0.5 rounded border border-rwv-border">
@@ -2435,25 +2409,16 @@
 
                     <div className="flex justify-between items-center text-[10px] text-rwv-textMuted mt-1.5 font-sans font-medium">
                         <span>0.00</span>
-                        {showMomentum && hasMom ? (
-                            <span className="flex items-center gap-1.5 text-[10px]">
-                                <span className={isReplenishing ? 'text-rwv-lime/80' : 'text-amber-400/80'}>
-                                    {isReplenishing ? 'Doplňování' : 'Krvácení'}
-                                </span>
-                                <span className="w-12 h-1 bg-rwv-bg rounded-full overflow-hidden border border-rwv-border inline-block">
+                        {showMomentum && hasMom && (
+                            <span className="flex items-center gap-1.5 text-[10px] text-rwv-textMuted">
+                                <span>{isReplenishing ? 'Doplňování' : 'Klesání'}</span>
+                                <span className="w-10 h-1 bg-rwv-bg rounded-full overflow-hidden border border-rwv-border inline-block">
                                     <span
-                                        className={`block h-full rounded-full ${isReplenishing ? 'bg-rwv-lime' : 'bg-amber-400'}`}
+                                        className={`block h-full rounded-full ${isReplenishing ? 'bg-rwv-olive' : 'bg-gray-500'}`}
                                         style={{ width: `${speedIntensity}%` }}
                                     ></span>
                                 </span>
-                                {Math.abs(manualDiff) >= 0.01 && (
-                                    <span className="text-gray-400 ml-1">
-                                        (Δ {manualDiff > 0 ? '+' : ''}{manualDiff.toFixed(2)})
-                                    </span>
-                                )}
                             </span>
-                        ) : (
-                            <span>0.50</span>
                         )}
                         <span>1.00</span>
                     </div>
