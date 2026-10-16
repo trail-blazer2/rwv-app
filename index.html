@@ -918,26 +918,55 @@
                             plugins: {
                                 legend: { display: false },
                                 tooltip: {
-                                    enabled: true,
-                                    backgroundColor: '#151E20', titleColor: '#6B8286',
-                                    bodyColor: '#C6F34F', borderColor: '#232E30',
-                                    borderWidth: 1, padding: 12, displayColors: false,
-                                    titleFont: { size: 11, family: 'system-ui' },
-                                    bodyFont: { size: 12, family: 'system-ui', weight: 'bold' },
-                                    animation: { duration: 400, easing: 'easeOutQuart' }, 
-                                    callbacks: {
-                                        title: (ctx) => ctx[0].label,
-                                        label: (ctx) => {
-                                            const b = ctx.chart.canvas._rwv_band;
-                                            const showFan = ctx.chart.canvas._rwv_show;
-                                            const out = ['Střední trajektorie: $' + ctx.parsed.y.toFixed(2)];
-                                            if (b && showFan && ctx.dataIndex > 0) {
-                                                out.push('Pásmo 68 % (1σ): $' + b.low68[ctx.dataIndex].toFixed(2) + ' – $' + b.high68[ctx.dataIndex].toFixed(2));
-                                                out.push('Ověřené pásmo 80 %: $' + b.low80[ctx.dataIndex].toFixed(2) + ' – $' + b.high80[ctx.dataIndex].toFixed(2));
-                                                out.push('Hraniční 95 % (2σ): $' + b.low95[ctx.dataIndex].toFixed(2) + ' – $' + b.high95[ctx.dataIndex].toFixed(2));
-                                            }
-                                            return out;
+                                    enabled: false, // Vypne základní canvas tooltip a použije náš vlastní HTML
+                                    external: function(context) {
+                                        let tooltipEl = document.getElementById('chartjs-tooltip');
+                                        if (!tooltipEl) {
+                                            tooltipEl = document.createElement('div');
+                                            tooltipEl.id = 'chartjs-tooltip';
+                                            document.body.appendChild(tooltipEl);
                                         }
+                                        const tooltipModel = context.tooltip;
+                                        if (tooltipModel.opacity === 0) {
+                                            tooltipEl.style.opacity = '0';
+                                            return;
+                                        }
+
+                                        if (tooltipModel.body) {
+                                            const title = tooltipModel.title[0] || '';
+                                            const b = context.chart.canvas._rwv_band;
+                                            const showFan = context.chart.canvas._rwv_show;
+                                            const idx = tooltipModel.dataPoints[0].dataIndex;
+                                            const p = tooltipModel.dataPoints[0].parsed.y;
+
+                                            // Texty jsou v odstínu #E5E7EB (světlá šedobílá), hodnoty zůstávají zářivé #C6F34F
+                                            let html = `<div style="color: #6B8286; font-size: 11px; margin-bottom: 6px; font-family: system-ui;">${title}</div>`;
+                                            html += `<div style="font-size: 12px; font-weight: bold; font-family: system-ui; line-height: 1.6;">`;
+                                            html += `<div style="color: #E5E7EB">Střední trajektorie: <span style="color: #C6F34F">$${p.toFixed(2)}</span></div>`;
+                                            
+                                            if (b && showFan && idx > 0) {
+                                                html += `<div style="color: #E5E7EB">Pásmo 68 % (1σ): <span style="color: #C6F34F">$${b.low68[idx].toFixed(2)} – $${b.high68[idx].toFixed(2)}</span></div>`;
+                                                html += `<div style="color: #E5E7EB">Ověřené pásmo 80 %: <span style="color: #C6F34F">$${b.low80[idx].toFixed(2)} – $${b.high80[idx].toFixed(2)}</span></div>`;
+                                                html += `<div style="color: #E5E7EB">Hraniční 95 % (2σ): <span style="color: #C6F34F">$${b.low95[idx].toFixed(2)} – $${b.high95[idx].toFixed(2)}</span></div>`;
+                                            }
+                                            html += `</div>`;
+                                            tooltipEl.innerHTML = html;
+                                        }
+
+                                        const position = context.chart.canvas.getBoundingClientRect();
+                                        tooltipEl.style.opacity = '1';
+                                        tooltipEl.style.position = 'absolute';
+                                        tooltipEl.style.backgroundColor = '#151E20';
+                                        tooltipEl.style.border = '1px solid #232E30';
+                                        tooltipEl.style.borderRadius = '8px';
+                                        tooltipEl.style.padding = '10px 12px';
+                                        tooltipEl.style.pointerEvents = 'none';
+                                        tooltipEl.style.transform = 'translate(-50%, 15px)';
+                                        tooltipEl.style.transition = 'opacity 0.15s ease, transform 0.1s ease';
+                                        tooltipEl.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.5)';
+                                        tooltipEl.style.zIndex = '9999';
+                                        tooltipEl.style.left = position.left + window.scrollX + tooltipModel.caretX + 'px';
+                                        tooltipEl.style.top = position.top + window.scrollY + tooltipModel.caretY + 'px';
                                     }
                                 }
                             },
