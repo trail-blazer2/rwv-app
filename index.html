@@ -918,62 +918,26 @@
                             plugins: {
                                 legend: { display: false },
                                 tooltip: {
-                                    enabled: false,
-                                    external: function(context) {
-                                        let tooltipEl = document.getElementById('chartjs-tooltip');
-                                        if (!tooltipEl) {
-                                            tooltipEl = document.createElement('div');
-                                            tooltipEl.id = 'chartjs-tooltip';
-                                            document.body.appendChild(tooltipEl);
-                                        }
-                                        const tooltipModel = context.tooltip;
-                                        if (tooltipModel.opacity === 0) {
-                                            tooltipEl.style.opacity = '0';
-                                            return;
-                                        }
-
-                                        if (tooltipModel.body) {
-                                            const title = tooltipModel.title[0] || '';
-                                            const b = context.chart.canvas._rwv_band;
-                                            const showFan = context.chart.canvas._rwv_show;
-                                            const idx = tooltipModel.dataPoints[0].dataIndex;
-                                            const p = tooltipModel.dataPoints[0].parsed.y;
-
-                                            let html = `<div style="color: #9CA3AF; font-size: 11px; margin-bottom: 6px; font-family: system-ui;">${title}</div>`;
-                                            html += `<div style="font-size: 12px; font-weight: 500; font-family: system-ui; line-height: 1.6;">`;
-                                            html += `<div style="color: #E2E8F0">Střední trajektorie: <span style="color: #C6F34F; font-weight: bold;">$${p.toFixed(2)}</span></div>`;
-                                            
-                                            if (b && showFan && idx > 0) {
-                                                html += `<div style="color: #E2E8F0">Pásmo 68 % (1σ): <span style="color: #C6F34F; font-weight: bold;">$${b.low68[idx].toFixed(2)} – $${b.high68[idx].toFixed(2)}</span></div>`;
-                                                html += `<div style="color: #E2E8F0">Ověřené pásmo 80 %: <span style="color: #C6F34F; font-weight: bold;">$${b.low80[idx].toFixed(2)} – $${b.high80[idx].toFixed(2)}</span></div>`;
-                                                html += `<div style="color: #E2E8F0">Hraniční 95 % (2σ): <span style="color: #C6F34F; font-weight: bold;">$${b.low95[idx].toFixed(2)} – $${b.high95[idx].toFixed(2)}</span></div>`;
+                                    enabled: true,
+                                    backgroundColor: '#151E20', titleColor: '#6B8286',
+                                    bodyColor: '#C6F34F', borderColor: '#232E30',
+                                    borderWidth: 1, padding: 12, displayColors: false,
+                                    titleFont: { size: 11, family: 'system-ui' },
+                                    bodyFont: { size: 12, family: 'system-ui', weight: 'bold' },
+                                    animation: { duration: 400, easing: 'easeOutQuart' }, 
+                                    callbacks: {
+                                        title: (ctx) => ctx[0].label,
+                                        label: (ctx) => {
+                                            const b = ctx.chart.canvas._rwv_band;
+                                            const showFan = ctx.chart.canvas._rwv_show;
+                                            const out = ['Střední trajektorie: $' + ctx.parsed.y.toFixed(2)];
+                                            if (b && showFan && ctx.dataIndex > 0) {
+                                                out.push('Pásmo 68 % (1σ): $' + b.low68[ctx.dataIndex].toFixed(2) + ' – $' + b.high68[ctx.dataIndex].toFixed(2));
+                                                out.push('Ověřené pásmo 80 %: $' + b.low80[ctx.dataIndex].toFixed(2) + ' – $' + b.high80[ctx.dataIndex].toFixed(2));
+                                                out.push('Hraniční 95 % (2σ): $' + b.low95[ctx.dataIndex].toFixed(2) + ' – $' + b.high95[ctx.dataIndex].toFixed(2));
                                             }
-                                            html += `</div>`;
-                                            // CSS šipka na spodní straně tooltipu
-                                            html += `<div style="position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #232E30;"></div>`;
-                                            tooltipEl.innerHTML = html;
+                                            return out;
                                         }
-
-                                        const position = context.chart.canvas.getBoundingClientRect();
-                                        tooltipEl.style.opacity = '1';
-                                        tooltipEl.style.position = 'absolute';
-                                        tooltipEl.style.backgroundColor = '#151E20';
-                                        tooltipEl.style.border = '1px solid #232E30';
-                                        tooltipEl.style.borderRadius = '8px';
-                                        tooltipEl.style.padding = '10px 12px';
-                                        tooltipEl.style.pointerEvents = 'none';
-                                        tooltipEl.style.zIndex = '9999';
-
-                                        // Plynulé přibližování souřadnic (lerp) pro hladký pohyb po křivce
-                                        if (!tooltipEl._pos) {
-                                            tooltipEl._pos = { x: tooltipModel.caretX, y: tooltipModel.caretY };
-                                        }
-                                        tooltipEl._pos.x += (tooltipModel.caretX - tooltipEl._pos.x) * 0.25;
-                                        tooltipEl._pos.y += (tooltipModel.caretY - tooltipEl._pos.y) * 0.25;
-
-                                        tooltipEl.style.left = position.left + window.scrollX + tooltipEl._pos.x + 'px';
-                                        tooltipEl.style.top = position.top + window.scrollY + tooltipEl._pos.y - tooltipEl.offsetHeight - 12 + 'px';
-                                        tooltipEl.style.transform = 'translateX(-50%)';
                                     }
                                 }
                             },
