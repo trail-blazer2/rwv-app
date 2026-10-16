@@ -919,22 +919,27 @@
                                 legend: { display: false },
                                 tooltip: {
                                     enabled: true,
-                                    backgroundColor: '#151E20', titleColor: '#6B8286',
-                                    bodyColor: '#C6F34F', borderColor: '#232E30',
-                                    borderWidth: 1, padding: 12, displayColors: false,
+                                    backgroundColor: '#151E20', 
+                                    titleColor: '#9CA3AF',
+                                    bodyColor: '#E2E8F0', // Soft UI white for text before price
+                                    borderColor: '#232E30',
+                                    borderWidth: 1, 
+                                    padding: 12, 
+                                    displayColors: false,
                                     titleFont: { size: 11, family: 'system-ui' },
-                                    bodyFont: { size: 12, family: 'system-ui', weight: 'bold' },
+                                    bodyFont: { size: 12, family: 'system-ui', weight: '500' },
                                     animation: { duration: 400, easing: 'easeOutQuart' }, 
                                     callbacks: {
                                         title: (ctx) => ctx[0].label,
                                         label: (ctx) => {
                                             const b = ctx.chart.canvas._rwv_band;
                                             const showFan = ctx.chart.canvas._rwv_show;
+                                            const idx = ctx.dataIndex;
                                             const out = ['Střední trajektorie: $' + ctx.parsed.y.toFixed(2)];
-                                            if (b && showFan && ctx.dataIndex > 0) {
-                                                out.push('Pásmo 68 % (1σ): $' + b.low68[ctx.dataIndex].toFixed(2) + ' – $' + b.high68[ctx.dataIndex].toFixed(2));
-                                                out.push('Ověřené pásmo 80 %: $' + b.low80[ctx.dataIndex].toFixed(2) + ' – $' + b.high80[ctx.dataIndex].toFixed(2));
-                                                out.push('Hraniční 95 % (2σ): $' + b.low95[ctx.dataIndex].toFixed(2) + ' – $' + b.high95[ctx.dataIndex].toFixed(2));
+                                            if (b && showFan && idx > 0) {
+                                                out.push('Pásmo 68 % (1σ): $' + b.low68[idx].toFixed(2) + ' – $' + b.high68[idx].toFixed(2));
+                                                out.push('Ověřené pásmo 80 %: $' + b.low80[idx].toFixed(2) + ' – $' + b.high80[idx].toFixed(2));
+                                                out.push('Hraniční 95 % (2σ): $' + b.low95[idx].toFixed(2) + ' – $' + b.high95[idx].toFixed(2));
                                             }
                                             return out;
                                         }
