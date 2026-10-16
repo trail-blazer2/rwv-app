@@ -918,7 +918,7 @@
                             plugins: {
                                 legend: { display: false },
                                 tooltip: {
-                                    enabled: false, // Vypne základní canvas tooltip a použije náš vlastní HTML
+                                    enabled: false,
                                     external: function(context) {
                                         let tooltipEl = document.getElementById('chartjs-tooltip');
                                         if (!tooltipEl) {
@@ -939,17 +939,18 @@
                                             const idx = tooltipModel.dataPoints[0].dataIndex;
                                             const p = tooltipModel.dataPoints[0].parsed.y;
 
-                                            // Texty jsou v odstínu #E5E7EB (světlá šedobílá), hodnoty zůstávají zářivé #C6F34F
-                                            let html = `<div style="color: #6B8286; font-size: 11px; margin-bottom: 6px; font-family: system-ui;">${title}</div>`;
-                                            html += `<div style="font-size: 12px; font-weight: bold; font-family: system-ui; line-height: 1.6;">`;
-                                            html += `<div style="color: #E5E7EB">Střední trajektorie: <span style="color: #C6F34F">$${p.toFixed(2)}</span></div>`;
+                                            let html = `<div style="color: #9CA3AF; font-size: 11px; margin-bottom: 6px; font-family: system-ui;">${title}</div>`;
+                                            html += `<div style="font-size: 12px; font-weight: 500; font-family: system-ui; line-height: 1.6;">`;
+                                            html += `<div style="color: #E2E8F0">Střední trajektorie: <span style="color: #C6F34F; font-weight: bold;">$${p.toFixed(2)}</span></div>`;
                                             
                                             if (b && showFan && idx > 0) {
-                                                html += `<div style="color: #E5E7EB">Pásmo 68 % (1σ): <span style="color: #C6F34F">$${b.low68[idx].toFixed(2)} – $${b.high68[idx].toFixed(2)}</span></div>`;
-                                                html += `<div style="color: #E5E7EB">Ověřené pásmo 80 %: <span style="color: #C6F34F">$${b.low80[idx].toFixed(2)} – $${b.high80[idx].toFixed(2)}</span></div>`;
-                                                html += `<div style="color: #E5E7EB">Hraniční 95 % (2σ): <span style="color: #C6F34F">$${b.low95[idx].toFixed(2)} – $${b.high95[idx].toFixed(2)}</span></div>`;
+                                                html += `<div style="color: #E2E8F0">Pásmo 68 % (1σ): <span style="color: #C6F34F; font-weight: bold;">$${b.low68[idx].toFixed(2)} – $${b.high68[idx].toFixed(2)}</span></div>`;
+                                                html += `<div style="color: #E2E8F0">Ověřené pásmo 80 %: <span style="color: #C6F34F; font-weight: bold;">$${b.low80[idx].toFixed(2)} – $${b.high80[idx].toFixed(2)}</span></div>`;
+                                                html += `<div style="color: #E2E8F0">Hraniční 95 % (2σ): <span style="color: #C6F34F; font-weight: bold;">$${b.low95[idx].toFixed(2)} – $${b.high95[idx].toFixed(2)}</span></div>`;
                                             }
                                             html += `</div>`;
+                                            // CSS šipka na spodní straně tooltipu
+                                            html += `<div style="position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #232E30;"></div>`;
                                             tooltipEl.innerHTML = html;
                                         }
 
@@ -961,12 +962,18 @@
                                         tooltipEl.style.borderRadius = '8px';
                                         tooltipEl.style.padding = '10px 12px';
                                         tooltipEl.style.pointerEvents = 'none';
-                                        tooltipEl.style.transform = 'translate(-50%, 15px)';
-                                        tooltipEl.style.transition = 'opacity 0.15s ease, transform 0.1s ease';
-                                        tooltipEl.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.5)';
                                         tooltipEl.style.zIndex = '9999';
-                                        tooltipEl.style.left = position.left + window.scrollX + tooltipModel.caretX + 'px';
-                                        tooltipEl.style.top = position.top + window.scrollY + tooltipModel.caretY + 'px';
+
+                                        // Plynulé přibližování souřadnic (lerp) pro hladký pohyb po křivce
+                                        if (!tooltipEl._pos) {
+                                            tooltipEl._pos = { x: tooltipModel.caretX, y: tooltipModel.caretY };
+                                        }
+                                        tooltipEl._pos.x += (tooltipModel.caretX - tooltipEl._pos.x) * 0.25;
+                                        tooltipEl._pos.y += (tooltipModel.caretY - tooltipEl._pos.y) * 0.25;
+
+                                        tooltipEl.style.left = position.left + window.scrollX + tooltipEl._pos.x + 'px';
+                                        tooltipEl.style.top = position.top + window.scrollY + tooltipEl._pos.y - tooltipEl.offsetHeight - 12 + 'px';
+                                        tooltipEl.style.transform = 'translateX(-50%)';
                                     }
                                 }
                             },
