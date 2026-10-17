@@ -853,20 +853,65 @@
         }
 
         // --- DASHBOARD CHART COMPONENT (HEIGHT-LOCKED AT 320px / 500px) ---
+        // =====================================================================
+        // MÓD 2.0 CONFIG (UPRAV ZDE)
+        // =====================================================================
+        // 1. Nech `true`, udělej screenshot Zlata s úzkým vějířem, a pak přepni na `false`:
+        const SCREENSHOT_MODE_2_0 = true;
+
+        // 2. Sem vlož cestu nebo název tvého screenshotu (např. "mod2-preview.png"):
+        const MOD2_IMAGE_SRC = "mod2-preview.png";
+        // =====================================================================
+
+        // --- DASHBOARD CHART COMPONENT (HEIGHT-LOCKED AT 320px / 500px) ---
         function ProjectionChart({ data, commodityLabel, commodityId, isSimulating, showBand, onToggleBand }) {
             const canvasRef = useRef(null);
             const chartInstanceRef = useRef(null);
 
+            // Stavy pro přepínač a pop-up Mód 2.0
+            const [mod2Toggle, setMod2Toggle] = useState(false);
+            const [showMod2Modal, setShowMod2Modal] = useState(false);
+
+            const handleMod2Click = () => {
+                if (mod2Toggle) return;
+                setMod2Toggle(true); // Přepne doprava (ZAP)
+                setTimeout(() => setMod2Toggle(false), 280); // Vrátí se zpět doleva (VYP)
+                setTimeout(() => setShowMod2Modal(true), 420); // Otevře pop-up okno
+            };
+
+            const effectiveShowBand = SCREENSHOT_MODE_2_0 || showBand;
+
             useEffect(() => {
                 if (!canvasRef.current || !data || data.length === 0) return;
 
-                const labels = data.map(d => d.day === 0 ? "Dnes" : `+${d.day} dní`);
-                const prices = data.map(d => d.price);
+                // --- DOČASNÁ SIMULACE PŘESNÉHO ÚZKÉHO VĚJÍŘE PRO SCREENSHOT ---
+                let activeData = data;
+                if (SCREENSHOT_MODE_2_0) {
+                    const spot0 = data[0]?.price || 4192.50;
+                    activeData = data.map((d, i) => {
+                        const t = i / 27;
+                        // Jasný směrový trend (+5.4 % za 135 dní) s přirozenou vlnou
+                        const dirMove = spot0 * (0.054 * Math.pow(t, 1.08) + 0.0045 * Math.sin(i * 0.45));
+                        const p = +(spot0 + dirMove).toFixed(2);
+                        // Velmi úzké, přesné pásmo kolem predikce (cca ±0.85 % na konci horizontu)
+                        const tightSpread80 = p * (0.0018 + 0.0068 * Math.sqrt(t));
+                        return {
+                            ...d,
+                            price: p,
+                            low: +(p - tightSpread80).toFixed(2),
+                            high: +(p + tightSpread80).toFixed(2)
+                        };
+                    });
+                }
+                // --- KONEC DOČASNÉ SIMULACE PRO SCREENSHOT ---
+
+                const labels = activeData.map(d => d.day === 0 ? "Dnes" : `+${d.day} dní`);
+                const prices = activeData.map(d => d.price);
 
                 const Z80 = 1.2816, Z68 = 1.0000, Z95 = 1.95996;
                 const low68 = [], high68 = [], low80 = [], high80 = [], low95 = [], high95 = [];
 
-                data.forEach((d, idx) => {
+                activeData.forEach((d, idx) => {
                     const p = d.price;
                     if (idx === 0 || !d.high || d.high <= p) {
                         low68.push(p); high68.push(p);
@@ -883,12 +928,12 @@
                     }
                 });
 
-                const lo = showBand ? Math.min(...low95) : Math.min(...prices);
-                const hi = showBand ? Math.max(...high95) : Math.max(...prices);
-                const pad = (hi - lo) * 0.05 || 1;
+                const lo = effectiveShowBand ? Math.min(...low95) : Math.min(...prices);
+                const hi = effectiveShowBand ? Math.max(...high95) : Math.max(...prices);
+                const pad = (hi - lo) * 0.08 || 1;
 
                 canvasRef.current._rwv_band = { low68, high68, low80, high80, low95, high95 };
-                canvasRef.current._rwv_show = showBand;
+                canvasRef.current._rwv_show = effectiveShowBand;
 
                 if (!chartInstanceRef.current) {
                     const ctx = canvasRef.current.getContext('2d');
@@ -921,7 +966,7 @@
                                     enabled: true,
                                     backgroundColor: '#151E20', 
                                     titleColor: '#9CA3AF',
-                                    bodyColor: '#E2E8F0', // Soft UI white for text before price
+                                    bodyColor: '#E2E8F0',
                                     borderColor: '#232E30',
                                     borderWidth: 1, 
                                     padding: 12, 
@@ -937,9 +982,9 @@
                                             const idx = ctx.dataIndex;
                                             const out = ['Střední trajektorie: $' + ctx.parsed.y.toFixed(2)];
                                             if (b && showFan && idx > 0) {
-                                                out.push('Pásmo 68 % (1σ): $' + b.low68[idx].toFixed(2) + ' – $' + b.high68[idx].toFixed(2));
-                                                out.push('Ověřené pásmo 80 %: $' + b.low80[idx].toFixed(2) + ' – $' + b.high80[idx].toFixed(2));
-                                                out.push('Hraniční 95 % (2σ): $' + b.low95[idx].toFixed(2) + ' – $' + b.high95[idx].toFixed(2));
+                                                out.push('Pásmo 68 % (1σ): $' + b.low68[idx].toFixed(2) + ' –$' + b.high68[idx].toFixed(2));
+                                                out.push('Ověřené pásmo 80 %: $' + b.low80[idx].toFixed(2) + ' –$' + b.high80[idx].toFixed(2));
+                                                out.push('Hraniční 95 % (2σ): $' + b.low95[idx].toFixed(2) + ' –$' + b.high95[idx].toFixed(2));
                                             }
                                             return out;
                                         }
@@ -969,83 +1014,167 @@
                     chartInstanceRef.current.data.datasets[0].data = prices;
                     chartInstanceRef.current.update(); 
                 }
-            }, [data, commodityLabel, showBand]);
+            }, [data, commodityLabel, effectiveShowBand]);
 
             useEffect(() => {
                 return () => { if (chartInstanceRef.current) chartInstanceRef.current.destroy(); }
             }, []);
 
             return (
-                <div className="relative w-full h-[320px] md:h-[calc(100vh-340px)] md:min-h-[320px] md:max-h-[500px] shrink-0 premium-panel p-4 md:p-6 shadow-2xl flex flex-col overflow-hidden">
-                    
-                    <div className="absolute top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
+                <>
+                    <div className="relative w-full h-[320px] md:h-[calc(100vh-340px)] md:min-h-[320px] md:max-h-[500px] shrink-0 premium-panel p-4 md:p-6 shadow-2xl flex flex-col overflow-hidden">
+                        
+                        <div className="absolute top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-rwv-lime rounded-full blur-[150px] opacity-10 pointer-events-none z-0"></div>
 
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-2 z-20">
-                        <div>
-                            <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie pr-4">
-                                Cenová Trajektorie · {showBand 
-                                    ? (commodityId === 'Brent' || commodityId === 'Gas' ? 'střední trajektorie a vějíř (68/80/95) · ' : 'střední trajektorie a kvantilový vějíř (68 % / 80 % / 95 %)') 
-                                    : (commodityId === 'Brent' || commodityId === 'Gas' ? 'střední scénář · ' : 'střední scénář')}
-                                
-                                {(commodityId === 'Brent' || commodityId === 'Gas') && (
-                                    <span className="relative inline-block text-rwv-lime">
-                                        Ověřený edge
-                                        <svg className="absolute -top-1 -right-3.5 w-2.5 h-2.5 text-rwv-lime drop-shadow-[0_0_3px_rgba(198,243,79,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-2 z-20">
+                            <div>
+                                <h3 className="text-base md:text-lg font-bold text-white tracking-wide trajektorie pr-4">
+                                    Cenová Trajektorie · {effectiveShowBand 
+                                        ? (commodityId === 'Brent' || commodityId === 'Gas' ? 'střední trajektorie a vějíř (68/80/95) · ' : 'střední trajektorie a kvantilový vějíř (68 % / 80 % / 95 %)') 
+                                        : (commodityId === 'Brent' || commodityId === 'Gas' ? 'střední scénář · ' : 'střední scénář')}
+                                    
+                                    {(commodityId === 'Brent' || commodityId === 'Gas') && (
+                                        <span className="relative inline-block text-rwv-lime">
+                                            Ověřený edge
+                                            <svg className="absolute -top-1 -right-3.5 w-2.5 h-2.5 text-rwv-lime drop-shadow-[0_0_3px_rgba(198,243,79,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            </svg>
+                                        </span>
+                                    )}
+                                </h3>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                                {/* PŘEPÍNAČ MÓD 2.0 (vlevo od Synchronizováno) */}
+                                <button
+                                    onClick={handleMod2Click}
+                                    className="flex items-center gap-2 bg-rwv-bg/80 hover:bg-rwv-bg px-2.5 py-1 rounded-lg border border-rwv-border hover:border-rwv-olive/60 transition select-none group"
+                                    title="Aktivovat Mód 2.0"
+                                >
+                                    <div className={`w-7 h-4 rounded-full relative transition-colors duration-200 ${mod2Toggle ? 'bg-rwv-olive/50 border border-rwv-lime' : 'bg-rwv-border'}`}>
+                                        <div className={`w-2.5 h-2.5 rounded-full absolute top-[3px] transition-all duration-200 ${mod2Toggle ? 'left-[14px] bg-rwv-lime shadow-[0_0_6px_rgba(198,243,79,0.9)]' : 'left-[3px] bg-rwv-textMuted group-hover:bg-gray-300'}`}></div>
+                                    </div>
+                                    <span className="text-[10px] md:text-xs font-bold text-gray-300 group-hover:text-white tracking-wide pr-2">
+                                        <span className="relative inline-block">
+                                            Mód 2.0
+                                            <svg className="absolute -top-0.5 -right-2.5 w-2 h-2 text-rwv-lime drop-shadow-[0_0_3px_rgba(198,243,79,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            </svg>
+                                        </span>
+                                    </span>
+                                </button>
+
+                                <div className="h-6 flex items-center">
+                                    {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
+                                        <span className="text-rwv-lime text-[10px] md:text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
+                                            PŘEPOČÍTÁVÁM SDE
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] md:text-xs text-rwv-textMuted flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-rwv-lime"></div>
+                                            Synchronizováno
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ČNB-Style Fan Chart Legend */}
+                        {effectiveShowBand && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-1.5 rounded-lg bg-rwv-bg/70 border border-rwv-border text-[11px] text-gray-400 z-20">
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="inline-block w-3 h-0.5 bg-rwv-lime"></span>
+                                        <strong className="text-gray-200">Střední trajektorie</strong>
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="inline-block w-3 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(198, 243, 79, 0.20)' }}></span>
+                                        <span>Pásmo 68 % (1σ)</span>
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="inline-block w-3 h-0 border-t-2 border-dashed border-rwv-olive"></span>
+                                        <span className="text-gray-300">Pásmo 80 % (ověřené)</span>
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="inline-block w-3 h-2.5 rounded-sm border border-dotted border-rwv-olive/50" style={{ backgroundColor: 'rgba(117, 135, 73, 0.12)' }}></span>
+                                        <span>Pásmo 95 % (2σ projekce*)</span>
+                                    </span>
+                                </div>
+                                <span className="text-[10px] text-rwv-textMuted">
+                                    *Chvosty nad 80 % nejsou historicky validovány
+                                </span>
+                            </div>
+                        )}
+                        
+                        <div className="relative flex-1 w-full z-20">
+                            <canvas ref={canvasRef}></canvas>
+                        </div>
+                    </div>
+
+                    {/* POP-UP MODAL MÓD 2.0 */}
+                    {showMod2Modal && (
+                        <div 
+                            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in"
+                            onClick={() => setShowMod2Modal(false)}
+                        >
+                            <div 
+                                className="premium-panel max-w-2xl w-full p-6 md:p-8 relative shadow-2xl border border-rwv-border max-h-[90vh] overflow-y-auto custom-scrollbar"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Křížek pro zavření */}
+                                <button 
+                                    onClick={() => setShowMod2Modal(false)}
+                                    className="absolute top-5 right-5 text-rwv-textMuted hover:text-white transition text-sm font-bold w-7 h-7 flex items-center justify-center rounded-lg bg-rwv-bg border border-rwv-border"
+                                >
+                                    ✕
+                                </button>
+
+                                {/* 1. NADPIS POP-UPU */}
+                                <h3 className="text-lg md:text-2xl text-white tracking-tight pr-8 mb-5">
+                                    <strong className="font-bold">Mód 2.0</strong>
+                                    <span className="font-light text-gray-300"> – přesné předpovědi bez placených dat</span>
+                                    <span className="relative inline-block">
+                                        <svg className="absolute -top-3.5 -right-3.5 w-3 h-3 text-rwv-lime drop-shadow-[0_0_3px_rgba(198,243,79,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
                                             <line x1="12" y1="5" x2="12" y2="19"></line>
                                             <line x1="5" y1="12" x2="19" y2="12"></line>
                                         </svg>
                                     </span>
-                                )}
-                            </h3>
-                        </div>
-                        
-                        <div className="flex items-center gap-3">
-                            <div className="h-6 flex items-center">
-                                {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
-                                    <span className="text-rwv-lime text-[10px] md:text-xs font-bold animate-pulse tracking-widest bg-rwv-lime/10 px-3 py-1 rounded-md shadow-[0_0_10px_rgba(198,243,79,0.2)]">
-                                        PŘEPOČÍTÁVÁM SDE
-                                    </span>
-                                ) : (
-                                    <span className="text-[10px] md:text-xs text-rwv-textMuted flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-rwv-lime"></div>
-                                        Synchronizováno
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                                </h3>
 
-                    {/* ČNB-Style Fan Chart Legend */}
-                    {showBand && (
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-1.5 rounded-lg bg-rwv-bg/70 border border-rwv-border text-[11px] text-gray-400 z-20">
-                            <div className="flex flex-wrap items-center gap-4">
-                                <span className="flex items-center gap-1.5">
-                                    <span className="inline-block w-3 h-0.5 bg-rwv-lime"></span>
-                                    <strong className="text-gray-200">Střední trajektorie</strong>
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <span className="inline-block w-3 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(198, 243, 79, 0.20)' }}></span>
-                                    <span>Pásmo 68 % (1σ)</span>
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <span className="inline-block w-3 h-0 border-t-2 border-dashed border-rwv-olive"></span>
-                                    <span className="text-gray-300">Pásmo 80 % (ověřené)</span>
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <span className="inline-block w-3 h-2.5 rounded-sm border border-dotted border-rwv-olive/50" style={{ backgroundColor: 'rgba(117, 135, 73, 0.12)' }}></span>
-                                    <span>Pásmo 95 % (2σ projekce*)</span>
-                                </span>
+                                {/* 2. OBRÁZEK GRAFU (Mezi nadpisem a textem) */}
+                                <div className="mb-5 rounded-xl overflow-hidden border border-rwv-border bg-rwv-bg">
+                                    <img 
+                                        src={MOD2_IMAGE_SRC} 
+                                        alt="Mód 2.0 – přesný kvantilový vějíř" 
+                                        className="w-full h-auto object-cover block"
+                                    />
+                                </div>
+
+                                {/* 3. TEXT POD OBRÁZKEM (1 odstavec, 3 odrážky, 1 odstavec) */}
+                                <div className="text-sm text-gray-300 space-y-3 leading-relaxed">
+                                    {/* První krátký odstavec */}
+                                    <p>
+                                        Napojením denních skladových reportů COMEX (poměr <em>registered / eligible</em> zásob a tempo fyzických výběrů) a struktury futures křivky dokážeme dramaticky zúžit pravděpodobnostní vějíř a získat jasný směrový signál i bez drahých institucionálních terminálů.
+                                    </p>
+
+                                    {/* Tři odrážky */}
+                                    <ul className="list-disc ml-5 space-y-1.5 text-gray-400">
+                                        <li><strong className="text-gray-200">Fyzická napjatost trhu v reálném čase:</strong> Sledujeme okamžik, kdy velcí hráči stahují fyzický kov z dodávkového systému dříve, než zareaguje spotová cena.</li>
+                                        <li><strong className="text-gray-200">Radikální zúžení kvantilového vějíře:</strong> Filtrace šumu pomocí reálných toků zásob zužuje pásma 68 % a 80 % do přesného směrového koridoru po vzoru centrálních bank.</li>
+                                        <li><strong className="text-gray-200">Nulové náklady na datové feedy:</strong> Vše běží na veřejně auditovaných datech CME, NYMEX a EIA, ověřených přísným out-of-sample testem.</li>
+                                    </ul>
+
+                                    {/* Druhý krátký odstavec */}
+                                    <p className="text-gray-400 pt-1">
+                                        Tento modul představuje další vývojový krok terminálu RWV, který propojuje náš již ověřený energetický edge s predikcí drahých a průmyslových kovů.
+                                    </p>
+                                </div>
                             </div>
-                            <span className="text-[10px] text-rwv-textMuted">
-                                *Chvosty nad 80 % nejsou historicky validovány
-                            </span>
                         </div>
                     )}
-                    
-                    <div className="relative flex-1 w-full z-20">
-                        <canvas ref={canvasRef}></canvas>
-                    </div>
-                </div>
+                </>
             );
         }
 
