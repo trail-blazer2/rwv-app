@@ -888,13 +888,20 @@
                 let activeData = data;
                 if (SCREENSHOT_MODE_2_0) {
                     const spot0 = data[0]?.price || 4192.50;
+                    // Realistický profil impulzů (28 bodů: počáteční akumulace, COMEX squeeze, konsolidace, druhý breakout)
+                    const pctProfile = [
+                        0.000, -0.003, -0.001,  0.004,  0.002,  0.007,  0.015,
+                        0.024,  0.031,  0.028,  0.033,  0.039,  0.036,  0.032,
+                        0.035,  0.034,  0.041,  0.048,  0.046,  0.053,  0.059,
+                        0.056,  0.062,  0.068,  0.065,  0.071,  0.076,  0.079
+                    ];
                     activeData = data.map((d, i) => {
                         const t = i / 27;
-                        // Jasný směrový trend (+5.4 % za 135 dní) s přirozenou vlnou
-                        const dirMove = spot0 * (0.054 * Math.pow(t, 1.08) + 0.0045 * Math.sin(i * 0.45));
-                        const p = +(spot0 + dirMove).toFixed(2);
-                        // Velmi úzké, přesné pásmo kolem predikce (cca ±0.85 % na konci horizontu)
-                        const tightSpread80 = p * (0.0018 + 0.0068 * Math.sqrt(t));
+                        const move = pctProfile[i] !== undefined ? pctProfile[i] : (0.079 * t);
+                        const p = +(spot0 * (1 + move)).toFixed(2);
+                        // Úzký, směrově jistý vějíř, který mírně dýchá při průrazech
+                        const localVolBoost = (i >= 6 && i <= 11) || (i >= 17 && i <= 23) ? 1.15 : 0.95;
+                        const tightSpread80 = p * (0.0015 + 0.0078 * Math.pow(t, 0.72)) * localVolBoost;
                         return {
                             ...d,
                             price: p,
@@ -1168,7 +1175,7 @@
 
                                     {/* Druhý krátký odstavec */}
                                     <p className="text-gray-400 pt-1">
-                                        Tento modul představuje další vývojový krok terminálu RWV, který propojuje náš již ověřený energetický edge s predikcí drahých a průmyslových kovů.
+                                        Podobným způsobem, jako se nám povedlo díky novému zpracování dat získat energetický edge, můžeme dosáhnout silnější a ověřené tajné výhody u kovů. 
                                     </p>
                                 </div>
                             </div>
