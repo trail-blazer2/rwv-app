@@ -1053,25 +1053,27 @@
                             </div>
                             
                             <div className="flex items-center gap-4">
-                                {/* PŘEPÍNAČ MÓD 2.0 (vlevo od Synchronizováno) */}
-                                <button
-                                    onClick={handleMod2Click}
-                                    className="flex items-center gap-2 bg-rwv-bg/80 hover:bg-rwv-bg px-2.5 py-1 rounded-lg border border-rwv-border hover:border-rwv-olive/60 transition select-none group"
-                                    title="Aktivovat Mód 2.0"
-                                >
-                                    <div className={`w-7 h-4 rounded-full relative transition-colors duration-200 ${mod2Toggle ? 'bg-rwv-olive/50 border border-rwv-lime' : 'bg-rwv-border'}`}>
-                                        <div className={`w-2.5 h-2.5 rounded-full absolute top-[3px] transition-all duration-200 ${mod2Toggle ? 'left-[14px] bg-rwv-lime shadow-[0_0_6px_rgba(198,243,79,0.9)]' : 'left-[3px] bg-rwv-textMuted group-hover:bg-gray-300'}`}></div>
-                                    </div>
-                                    <span className="text-[10px] md:text-xs font-bold text-gray-300 group-hover:text-white tracking-wide pr-2">
-                                        <span className="relative inline-block">
-                                            Mód 2.0
-                                            <svg className="absolute -top-0.5 -right-2.5 w-2 h-2 text-rwv-lime drop-shadow-[0_0_3px_rgba(198,243,79,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                                <line x1="12" y1="5" x2="12" y2="19"></line>
-                                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                                            </svg>
+                                {/* PŘEPÍNAČ MÓD 2.0 (zobrazen vždy, kromě normálního zobrazení na Brent/Gas) */}
+                                {((commodityId !== 'Cocoa' && showBand) || (commodityId !== 'Brent' && commodityId !== 'Gas' && commodityId !== 'Cocoa')) && (
+                                    <button
+                                        onClick={handleMod2Click}
+                                        className="flex items-center gap-2 bg-rwv-bg/80 hover:bg-rwv-bg px-2.5 py-1 rounded-lg border border-rwv-border hover:border-rwv-olive/60 transition select-none group"
+                                        title="Aktivovat Mód 2.0"
+                                    >
+                                        <div className={`w-7 h-4 rounded-full relative transition-colors duration-200 ${mod2Toggle ? 'bg-rwv-olive/50 border border-rwv-lime' : 'bg-rwv-border'}`}>
+                                            <div className={`w-2.5 h-2.5 rounded-full absolute top-[3px] transition-all duration-200 ${mod2Toggle ? 'left-[14px] bg-rwv-lime shadow-[0_0_6px_rgba(198,243,79,0.9)]' : 'left-[3px] bg-rwv-textMuted group-hover:bg-gray-300'}`}></div>
+                                        </div>
+                                        <span className="text-[10px] md:text-xs font-bold text-gray-300 group-hover:text-white tracking-wide pr-2">
+                                            <span className="relative inline-block">
+                                                Mód 2.0
+                                                <svg className="absolute -top-0.5 -right-2.5 w-2 h-2 text-rwv-lime drop-shadow-[0_0_3px_rgba(198,243,79,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                                </svg>
+                                            </span>
                                         </span>
-                                    </span>
-                                </button>
+                                    </button>
+                                )}
 
                                 <div className="h-6 flex items-center">
                                     {isSimulating || data === INITIAL_DUMMY_CURVE || data.length === 0 ? (
