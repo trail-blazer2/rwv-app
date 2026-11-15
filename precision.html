@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>RWV – Přesnost: Odhad vs. Realita</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { background:#0b1011; color:#e2e8f0; font-family:system-ui,-apple-system,sans-serif; margin:0; padding:24px; max-width:1150px; margin:auto; }
+  h1 { font-size:22px; margin-bottom:6px; color:#fff; }
+  h2 { font-size:14px; margin-top:28px; text-transform:uppercase; letter-spacing:0.06em; color:#9ca3af; }
+  .note { background:#151e20; border:1px solid #232e30; border-radius:10px; padding:14px 16px; font-size:13px; color:#9ca3af; line-height:1.5; margin-bottom:18px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:14px 0; }
+  select, button { background:#151e20; color:#e2e8f0; border:1px solid #232e30; border-radius:6px; padding:7px 12px; font-size:13px; cursor:pointer; }
+  button.active { background:#2c2d2a; border-color:#c6f34f; color:#c6f34f; font-weight:600; }
+  table { border-collapse:collapse; width:100%; font-size:13px; background:#151e20; border-radius:10px; overflow:hidden; border:1px solid #232e30; margin-bottom:20px; }
+  th, td { border-bottom:1px solid #232e30; padding:8px 10px; text-align:right; }
+  th { background:#11181a; color:#6b8286; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align:left; }
+  .good { color:#c6f34f; font-weight:600; }
+  .bad { color:#ff8a7a; }
+  .pending { color:#fbbf24; font-size:12px; }
+  .muted { color:#6b8286; }
+</style>
+</head>
+<body>
+
+<h1>Přesnost modelu: Odhad vs. Realita</h1>
+<div class="note">
+  Tato stránka porovnává <b>skutečně uložené predikce serveru</b> (z <code>rwv-forward-log</code>, které se ukládají každý všední den předtím, než nastane budoucnost) se skutečnou cenou. U mladších predikcí (&lt; 30 dní) ukazuje <b>průběžný stav vůči dnešní ceně</b>. Můžete také přepnout na historický Walk-Forward Backtest.
+</div>
+
+<div class="toolbar">
+  <button id="btnLive" class="active" onclick="setMode('live')">1. Živý záznam serveru (Forward Log)</button>
+  <button id="btnBt" onclick="setMode('bt')">2. Historický Backtest (CSV)</button>
+  <select id="horizon" onchange="render()"></select>
+  <select id="commodity" onchange="render()">
+    <option value="ALL">Všechny komodity</option>
+  </select>
+  <span id="status" class="muted" style="margin-left:auto;font-size:12px;"></span>
+</div>
+
+<h2>Souhrn přesnosti podle komodity</h2>
+<table id="sumTable"></table>
+
+<h2>Jednotlivé predikce (Odhad vs. Skutečnost)</h2>
+<table id="rowTable"></table>
+
+<script>
+const API_BASE = "https://ivanmazurov--rwv-engine-production-fastapi-app.modal.run";
+let mode = "live";
+let liveData = null;
+let btData = [];
+
+async function init() {
+  // 1. Load CSV backtest
+  try {
+    const r = await fetch("backtest_results.csv");
+    const t = await r.text();
+    const lines = t.trim().split("\n"), headers = lines[0].split(",");
+    btData = lines.slice(1).map(l => {
+      const v = l.split(","), o = {};
+      headers.forEach((k, i) => o[k] = (isNaN(+v[i]) || k === "date" || k === "commodity") ? v[i] : +v[i]);
+      return o;
+    });
+  } catch (e) { console.warn("CSV nenalezeno:", e); }
+
+  // 2. Load Live Track Record from Modal API
+  const token = localStorage.getItem("rwv_token");
+  if (!token) {
+    document.getElementById("status").innerHTML = "⚠️ Nejste přihlášeni (otevřete nejprve hlavní aplikaci v tomto prohlížeči).";
+  } else {
+    try {
+      document.getElementById("status").textContent = "Načítám živou historii ze serveru…";
+      const res = await fetch(`${API_BASE}/api/v1/track-record`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      liveData = await res.json();
+      document.getElementById("status").textContent = `Uloženo celkem ${liveData.entries_logged || 0} živých predikcí`;
+    } catch (e) {
+      document.getElementById("status").textContent = "Chyba načtení živých dat z API.";
+    }
+  }
+  setMode(liveData && liveData.entries && liveData.entries.length ? "live" : "bt");
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById("btnLive").className = m === "live" ? "active" : "";
+  document.getElementById("btnBt").className = m === "bt" ? "active" : "";
+  const hSel = document.getElementById("horizon");
+  if (m === "live") {
+    hSel.innerHTML = `<option value="30">Horizont 30 dní</option><option value="90">Horizont 90 dní</option>`;
+  } else {
+    hSel.innerHTML = `<option value="4">Horizont 4 týdny (28d)</option><option value="13">Horizont 13 týdnů (91d)</option>`;
+  }
+  populateCommodities();
+  render();
+}
+
+function populateCommodities() {
+  const cSel = document.getElementById("commodity");
+  const cur = cSel.value;
+  const rows = mode === "live" ? (liveData?.entries || []) : btData;
+  const cs = [...new Set(rows.map(d => d.commodity))];
+  cSel.innerHTML = `<option value="ALL">Všechny komodity</option>` + cs.map(c => `<option value="${c}">${c}</option>`).join("");
+  if (cs.includes(cur)) cSel.value = cur;
+}
+
+function render() {
+  if (mode === "live") renderLive();
+  else renderBt();
+}
+
+function renderLive() {
+  const h = +document.getElementById("horizon").value;
+  const cFilter = document.getElementById("commodity").value;
+  const entries = (liveData?.entries || []);
+  const cs = [...new Set(entries.map(e => e.commodity))];
+
+  let sumHtml = `<tr><th>Komodita</th><th>Uloženo</th><th>Dokončeno (${h}d)</th><th>Chyba modelu</th><th>Chyba „beze změny“</th><th>Trefa směru</th><th>V pásmu 80 %</th></tr>`;
+  cs.forEach(c => {
+    const allC = entries.filter(e => e.commodity === c);
+    // Use official actual_h if 30d passed, otherwise compare against current_spot for live preview
+    const scored = allC.filter(e => e[`actual_${h}`] != null || e.current_spot != null);
+    let errM = 0, errNC = 0, dirHits = 0, dirTot = 0, inBand = 0, exactScored = 0;
+
+    scored.forEach(e => {
+      const act = e[`actual_${h}`] ?? e.current_spot;
+      if (e[`actual_${h}`] != null) exactScored++;
+      const mod = e[`model_${h}`] ?? e.spot;
+      const predPct = (mod / e.spot - 1) * 100;
+      const actPct = (act / e.spot - 1) * 100;
+      errM += Math.abs(predPct - actPct);
+      errNC += Math.abs(actPct);
+      if (Math.abs(predPct) > 0.01) {
+        dirTot++;
+        if (predPct * actPct > 0) dirHits++;
+      }
+      if (act >= e[`low_${h}`] && act <= e[`high_${h}`]) inBand++;
+    });
+
+    const n = scored.length || 1;
+    const em = errM / n, enc = errNC / n;
+    const hitRate = dirTot ? (100 * dirHits / dirTot).toFixed(1) + " %" : "—";
+    sumHtml += `<tr>
+      <td><b>${c}</b></td>
+      <td>${allC.length}</td>
+      <td>${exactScored} <span class="muted">(${scored.length - exactScored} živě)</span></td>
+      <td class="${em <= enc ? 'good' : 'bad'}">${em.toFixed(2)} %</td>
+      <td>${enc.toFixed(2)} %</td>
+      <td class="${dirTot && (dirHits/dirTot) >= 0.5 ? 'good' : ''}">${hitRate}</td>
+      <td>${(100 * inBand / n).toFixed(1)} %</td>
+    </tr>`;
+  });
+  document.getElementById("sumTable").innerHTML = entries.length ? sumHtml : `<tr><td colspan="7">Zatím žádné záznamy (nebo nejste přihlášeni).</td></tr>`;
+
+  const filtered = cFilter === "ALL" ? entries : entries.filter(e => e.commodity === cFilter);
+  let rowHtml = `<tr><th>Datum predikce</th><th>Komodita</th><th>Spot tehdy</th><th>Odhad modelu (+${h}d)</th><th>Realita / Dnes</th><th>Pásmo 80 %</th><th>Směr</th><th>V pásmu</th></tr>`;
+  filtered.forEach(e => {
+    const isFinal = e[`actual_${h}`] != null;
+    const act = e[`actual_${h}`] ?? e.current_spot;
+    const mod = e[`model_${h}`] ?? e.spot;
+    const predPct = (mod / e.spot - 1) * 100;
+    const actPct = act ? (act / e.spot - 1) * 100 : null;
+    const dirOk = actPct != null && (predPct * actPct > 0);
+    const bandOk = act != null && act >= e[`low_${h}`] && act <= e[`high_${h}`];
+
+    rowHtml += `<tr>
+      <td>${e.date}</td>
+      <td><b>${e.commodity}</b></td>
+      <td>$${e.spot.toFixed(2)}</td>
+      <td>$${mod ? mod.toFixed(2) : '—'} <span class="muted">(${predPct >= 0 ? '+' : ''}${predPct.toFixed(2)} %)</span></td>
+      <td>${act ? '$' + act.toFixed(2) + ` (${actPct >= 0 ? '+' : ''}${actPct.toFixed(2)} %)` : '—'} ${!isFinal ? '<span class="pending">[živě dnes]</span>' : ''}</td>
+      <td class="muted">$${e[`low_${h}`]?.toFixed(2)} … $${e[`high_${h}`]?.toFixed(2)}</td>
+      <td class="${dirOk ? 'good' : 'bad'}">${Math.abs(predPct) < 0.01 ? '—' : (dirOk ? '✓ Trefa' : '✗ Vedle')}</td>
+      <td class="${bandOk ? 'good' : 'bad'}">${bandOk ? 'ANO' : 'NE'}</td>
+    </tr>`;
+  });
+  document.getElementById("rowTable").innerHTML = rowHtml;
+}
+
+function renderBt() {
+  const h = +document.getElementById("horizon").value;
+  const cFilter = document.getElementById("commodity").value;
+  const S = btData.filter(d => d.horizon_weeks === h);
+  const cs = [...new Set(S.map(d => d.commodity))];
+
+  let sumHtml = `<tr><th>Komodita</th><th>Počet</th><th>Chyba modelu</th><th>Chyba „beze změny“</th><th>Poměr</th><th>Trefa směru</th><th>V pásmu 80 %</th></tr>`;
+  cs.forEach(c => {
+    const s = S.filter(d => d.commodity === c);
+    const em = s.reduce((a, d) => a + Math.abs(d.pred_pct - d.actual_pct), 0) / s.length;
+    const en = s.reduce((a, d) => a + Math.abs(d.actual_pct), 0) / s.length;
+    const cov = s.filter(d => d.actual_pct >= d.low_pct && d.actual_pct <= d.high_pct).length;
+    const dirRows = s.filter(d => Math.abs(d.pred_pct) > 0.001);
+    const dirHits = dirRows.filter(d => d.pred_pct * d.actual_pct > 0).length;
+    const hitPct = dirRows.length ? (100 * dirHits / dirRows.length).toFixed(1) + " %" : "—";
+
+    sumHtml += `<tr>
+      <td><b>${c}</b></td>
+      <td>${s.length}</td>
+      <td class="${em < en ? 'good' : 'bad'}">${em.toFixed(2)} %</td>
+      <td>${en.toFixed(2)} %</td>
+      <td class="${em < en ? 'good' : 'bad'}">${(em / en).toFixed(3)}</td>
+      <td class="${dirRows.length && (dirHits/dirRows.length) >= 0.5 ? 'good' : 'bad'}">${hitPct}</td>
+      <td>${(100 * cov / s.length).toFixed(1)} %</td>
+    </tr>`;
+  });
+  document.getElementById("sumTable").innerHTML = sumHtml;
+
+  const R = cFilter === "ALL" ? S : S.filter(d => d.commodity === cFilter);
+  let rowHtml = `<tr><th>Datum</th><th>Komodita</th><th>Odhad modelu</th><th>Skutečnost</th><th>Pásmo 80 %</th><th>Směr</th><th>V pásmu</th></tr>`;
+  R.forEach(d => {
+    const ok = d.actual_pct >= d.low_pct && d.actual_pct <= d.high_pct;
+    const dirOk = d.pred_pct * d.actual_pct > 0;
+    rowHtml += `<tr>
+      <td>${d.date}</td>
+      <td><b>${d.commodity}</b></td>
+      <td>${d.pred_pct >= 0 ? '+' : ''}${d.pred_pct.toFixed(2)} %</td>
+      <td>${d.actual_pct >= 0 ? '+' : ''}${d.actual_pct.toFixed(2)} %</td>
+      <td class="muted">${d.low_pct.toFixed(1)} % … +${d.high_pct.toFixed(1)} %</td>
+      <td class="${dirOk ? 'good' : 'bad'}">${Math.abs(d.pred_pct) < 0.001 ? '—' : (dirOk ? '✓ Trefa' : '✗ Vedle')}</td>
+      <td class="${ok ? 'good' : 'bad'}">${ok ? 'ANO' : 'NE'}</td>
+    </tr>`;
+  });
+  document.getElementById("rowTable").innerHTML = rowHtml;
+}
+
+init();
+</script>
+</body>
+</html>
